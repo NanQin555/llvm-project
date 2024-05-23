@@ -1,1 +1,2 @@
 clang-tools-extra/clangd/quality/model/forest.json filter=lfs diff=lfs merge=lfs -text
+cmake-3.29.3-linux-x86_64.tar.gz filter=lfs diff=lfs merge=lfs -text
