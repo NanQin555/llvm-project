@@ -32,7 +32,7 @@ RecordDumpConsumer::~RecordDumpConsumer() {
 
 void RecordDumpConsumer::Dump() {
   const SmallVectorImpl<Type *> &types = ctx_->getTypes();
-  std::set<Type*> record_types;
+  std::set<const Type*> record_types;
   TiXmlDocument doc;
   doc.LinkEndChild(new TiXmlDeclaration("1.0", "utf-8", "" ));
 
@@ -40,24 +40,48 @@ void RecordDumpConsumer::Dump() {
   tu_elem->SetAttribute("SourceLocation", source_file_);
 
   for (SmallVectorImpl<Type *>::const_iterator it = types.begin(); it != types.end(); ++it) {
-    Type *t = *it;
-    RecordType *record = NULL;
-    if (!t->isRecordType() || ((record = dyn_cast<RecordType>(t)) == NULL) ||
-        t->isDependentType()) {
-      continue;
-    } else {
-      RecordDecl *decl = record->getDecl();
-      if (decl->isInAnonymousNamespace() || !decl->isDefinedOutsideFunctionOrMethod()) {
+    const Type *t = *it;
+    // 将全部的 ElaboratedType 全部加进来, 大约会提升80%的占用, 后续再看怎么优化
+    bool isElaboratedType = false;
+    if (t->isElaboratedTypeSpecifier()) {
+      QualType qualType = dyn_cast<ElaboratedType>(t)->getNamedType();
+      t =  qualType.getTypePtrOrNull();
+      if (!t) {
         continue;
       }
+      isElaboratedType = true;
     }
-    
+    const RecordType *record = NULL;
+    if (!t->isRecordType() || ((record = dyn_cast<const RecordType>(t)) == NULL) ||
+        t->isDependentType()) {
+      continue;
+    }
+    RecordDecl *decl = record->getDecl();
+    if (decl->isInAnonymousNamespace() || !decl->isDefinedOutsideFunctionOrMethod()) {
+      continue;
+    }
     if (record_types.find(record) != record_types.end()) {
       continue;
     }
+    if (!decl->isReferenced() && !isElaboratedType) {
+      // 解决 this 指针引用，不在类内定义的函数的类则加进来
+      bool methodRef = false;
+      auto cxxDecl = dyn_cast<CXXRecordDecl>(decl);
+      if (cxxDecl) {
+        for (auto iter = cxxDecl->method_begin(); iter != cxxDecl->method_end(); iter++) {
+          auto method = *iter;
+          if (method->hasTrivialBody() && method->isDefined() && !method->doesThisDeclarationHaveABody()) {
+            methodRef = true;
+            break;
+          }
+        }
+      }
+      if (!methodRef) {
+        continue;
+      }
+    }
     record_types.insert(record);
 
-    RecordDecl *decl = record->getDecl();
     // std::cout << "Record: " << decl  << ", " << QualType(t, 0).getAsString() << std::endl;
     DumpRecordToXml(decl, tu_elem);
     // QualType tp(t, 0);
@@ -108,15 +132,6 @@ void RecordDumpConsumer::DumpDeclToXml(Decl *decl, TiXmlElement *e) {
       break;
   }
 }
-
-// std::string GetQualifiedTypeString(const Type *record) {
-//   assert(record->isRecordType());
-//   const RecordType *r = dyn_cast<RecordType>(record);
-//   const RecordDecl *child = r->getDecl();
-//   for (const RecordDecl *parent = child->getLexicalParent(); parent != NULL;
-//        parent = parent->getLexicalParent()) {
-//     name =
-// }
 
 void RecordDumpConsumer::DumpNamespaceToXml(NamespaceDecl *decl,
                                             TiXmlElement *parent) {
