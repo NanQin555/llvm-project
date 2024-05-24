@@ -161,6 +161,15 @@ void RecordDumpConsumer::DumpRecordToXml(RecordDecl *decl,
     return;
   }
 
+  // FIX: template specialization in a class cause segfault
+  if (dyn_cast<CXXRecordDecl>(decl) != nullptr) {
+    clang::CXXRecordDecl *Class = dyn_cast<CXXRecordDecl>(decl);
+    for (const CXXBaseSpecifier &Base : Class->bases()) {
+      if (Base.getType()->getAsCXXRecordDecl() == nullptr) {
+        return;
+      }
+    }
+  }
 //   std::string q;
 // 
 //   for (DeclContext *pp = decl->getLexicalParent(); pp != NULL;
