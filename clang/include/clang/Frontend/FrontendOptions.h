@@ -139,6 +139,8 @@ enum ActionKind {
   /// Just lex, no output.
   RunPreprocessorOnly,
 
+  EmitRecordLayout,
+
   /// Print the output of the dependency directives source minimizer.
   PrintDependencyDirectivesSourceMinimizerOutput
 };
