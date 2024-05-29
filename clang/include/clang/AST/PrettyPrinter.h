@@ -77,7 +77,7 @@ struct PrintingPolicy {
         PrintCanonicalTypes(false), PrintInjectedClassNameWithArguments(true),
         UsePreferredNames(true), AlwaysIncludeTypeForTemplateArgument(false),
         CleanUglifiedParameters(false), EntireContentsOfLargeArray(true),
-        UseEnumerators(true) {}
+        UseEnumerators(true), CxxStyle(false){}
 
   /// Adjust this printing policy for cases where it's known that we're
   /// printing C++ code (for instance, if AST dumping reaches a C++-only
@@ -249,6 +249,10 @@ struct PrintingPolicy {
   /// anonymous namespaces as `anonymous namespace' and does not insert spaces
   /// after template arguments.
   unsigned MSVCFormatting : 1;
+
+  /// \brief Whether we print out the C Record type like the CXX-style,
+  /// i.e. Record::Record.
+  unsigned CxxStyle : 1;
 
   /// Whether we should print the constant expressions as written in the
   /// sources.

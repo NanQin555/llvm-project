@@ -1187,6 +1187,8 @@ def emit_llvm : Flag<["-"], "emit-llvm">, Flags<[CC1Option, FC1Option, FlangOpti
   HelpText<"Use the LLVM representation for assembler and object files">;
 def emit_interface_stubs : Flag<["-"], "emit-interface-stubs">, Flags<[CC1Option]>, Group<Action_Group>,
   HelpText<"Generate Interface Stub Files.">;
+def emit_record_layout : Flag<["-"], "emit-record-layout">, Flags<[CC1Option]>,
+  Group<Action_Group>, HelpText<"Dump out all the records(union, class, struct) layout">;
 def emit_merged_ifs : Flag<["-"], "emit-merged-ifs">,
   Flags<[CC1Option]>, Group<Action_Group>,
   HelpText<"Generate Interface Stub Files, emit merged text not binary.">;
@@ -6211,6 +6213,8 @@ defm enable_noundef_analysis : BoolOption<"",
   PosFlag<SetTrue, [], "Enable">,
   NegFlag<SetFalse, [], "Disable">,
   BothFlags<[], " analyzing function argument and return types for mandatory definedness">>;
+def layout_file : Separate<["-"], "layout-file">, MetaVarName<"<path>">,
+  HelpText<"Specify layout file">;
 def discard_value_names : Flag<["-"], "discard-value-names">,
   HelpText<"Discard value names in LLVM IR">,
   MarshallingInfoFlag<CodeGenOpts<"DiscardValueNames">>;

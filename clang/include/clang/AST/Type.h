@@ -1104,6 +1104,12 @@ public:
   static std::string getAsString(const Type *ty, Qualifiers qs,
                                  const PrintingPolicy &Policy);
 
+  static std::string getAsCxxString(const Type *ty, Qualifiers qs);
+
+  std::string getAsCxxString() const {
+    SplitQualType sp = split();
+    return getAsCxxString(sp.Ty, sp.Quals);
+  }
   std::string getAsString() const;
   std::string getAsString(const PrintingPolicy &Policy) const;
 

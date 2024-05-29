@@ -2460,6 +2460,7 @@ static const auto &getFrontendActionTable() {
       {frontend::EmitCodeGenOnly, OPT_emit_codegen_only},
       {frontend::EmitObj, OPT_emit_obj},
       {frontend::ExtractAPI, OPT_extract_api},
+      {frontend::EmitRecordLayout, OPT_emit_record_layout},
 
       {frontend::FixIt, OPT_fixit_EQ},
       {frontend::FixIt, OPT_fixit},
@@ -4089,6 +4090,7 @@ static bool isStrictlyPreprocessorAction(frontend::ActionKind Action) {
   case frontend::EmitLLVMOnly:
   case frontend::EmitCodeGenOnly:
   case frontend::EmitObj:
+  case frontend::EmitRecordLayout:
   case frontend::ExtractAPI:
   case frontend::FixIt:
   case frontend::GenerateModule:

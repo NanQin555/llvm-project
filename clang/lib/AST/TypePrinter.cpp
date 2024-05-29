@@ -1291,24 +1291,39 @@ void TypePrinter::AppendScope(DeclContext *DC, raw_ostream &OS,
 
   if (Policy.Callbacks && Policy.Callbacks->isScopeVisible(DC))
     return;
+  
+  DeclContext *parent = DC->getParent();
+  if (Policy.CxxStyle) {
+    // std::cout << "print out cxx style" << std::endl;
+    // deal with the following case:
+    // struct A {
+    //  struct B *pointer; // B is incomplete, declared in A scope,
+    //  however, considered in the global scope.
+    // };
+    TagDecl *decl = dyn_cast<TagDecl>(DC);
+    if (decl && decl->isCompleteDefinition())
+      parent = decl->getLexicalParent();
+    // std::cout << "has parent: " << parent << "is tu: "
+    //    << parent->isTranslationUnit() << std::endl;
+  }
 
   if (const auto *NS = dyn_cast<NamespaceDecl>(DC)) {
     if (Policy.SuppressUnwrittenScope && NS->isAnonymousNamespace())
-      return AppendScope(DC->getParent(), OS, NameInScope);
+      return AppendScope(parent, OS, NameInScope);
 
     // Only suppress an inline namespace if the name has the same lookup
     // results in the enclosing namespace.
     if (Policy.SuppressInlineNamespace && NS->isInline() && NameInScope &&
         NS->isRedundantInlineQualifierFor(NameInScope))
-      return AppendScope(DC->getParent(), OS, NameInScope);
+      return AppendScope(parent, OS, NameInScope);
 
-    AppendScope(DC->getParent(), OS, NS->getDeclName());
+    AppendScope(parent, OS, NS->getDeclName());
     if (NS->getIdentifier())
       OS << NS->getName() << "::";
     else
       OS << "(anonymous namespace)::";
   } else if (const auto *Spec = dyn_cast<ClassTemplateSpecializationDecl>(DC)) {
-    AppendScope(DC->getParent(), OS, Spec->getDeclName());
+    AppendScope(parent, OS, Spec->getDeclName());
     IncludeStrongLifetimeRAII Strong(Policy);
     OS << Spec->getIdentifier()->getName();
     const TemplateArgumentList &TemplateArgs = Spec->getTemplateArgs();
@@ -1317,7 +1332,7 @@ void TypePrinter::AppendScope(DeclContext *DC, raw_ostream &OS,
         Spec->getSpecializedTemplate()->getTemplateParameters());
     OS << "::";
   } else if (const auto *Tag = dyn_cast<TagDecl>(DC)) {
-    AppendScope(DC->getParent(), OS, Tag->getDeclName());
+    AppendScope(parent, OS, Tag->getDeclName());
     if (TypedefNameDecl *Typedef = Tag->getTypedefNameForAnonDecl())
       OS << Typedef->getIdentifier()->getName() << "::";
     else if (Tag->getIdentifier())
@@ -1325,7 +1340,7 @@ void TypePrinter::AppendScope(DeclContext *DC, raw_ostream &OS,
     else
       return;
   } else {
-    AppendScope(DC->getParent(), OS, NameInScope);
+    AppendScope(parent, OS, NameInScope);
   }
 }
 
@@ -1351,8 +1366,39 @@ void TypePrinter::printTag(TagDecl *D, raw_ostream &OS) {
   // Compute the full nested-name-specifier for this type.
   // In C, this will always be empty except when the type
   // being printed is anonymous within other Record.
-  if (!Policy.SuppressScope)
-    AppendScope(D->getDeclContext(), OS, D->getDeclName());
+  if (!Policy.SuppressScope) {
+    // AppendScope(D->getDeclContext(), OS, D->getDeclName());
+    // std::cout << "SupressScope: " << Policy.SuppressScope << std::endl;
+    DeclContext *parent = NULL;
+    if (Policy.CxxStyle) {
+      // to fix the following case.
+      // struct A {
+      //  struct B *p;
+      // };
+      //
+      TagDecl *decl = dyn_cast<TagDecl>(D);
+      // if (const IdentifierInfo *II = D->getIdentifier()) {
+      //   std::cout << "type: " << II->getNameStart() << std::endl;
+      //   std::cout << "have parent: " << decl << "is complete: "
+      //     << decl->isCompleteDefinition() << std::endl;
+      // } else if (TypedefNameDecl *Typedef = D->getTypedefNameForAnonDecl()) {
+      //   std::cout << "typedef: " << Typedef->getIdentifier()->getNameStart()
+      //     << std::endl;
+      //   std::cout << "have parent: " << decl << "is complete : "
+      //     << decl->isCompleteDefinition() << std::endl;
+      // }
+
+      if (decl && decl->isCompleteDefinition()) {
+        parent = D->getLexicalDeclContext();
+        // std::cout << "parent: " << parent->isTranslationUnit() << std::endl;
+      } else {
+        parent = D->getDeclContext();
+      }
+    } else {
+      parent = D->getDeclContext();
+    }
+    AppendScope(parent, OS, D->getDeclName());
+  } 
 
   if (const IdentifierInfo *II = D->getIdentifier())
     OS << II->getName();
@@ -1410,11 +1456,11 @@ void TypePrinter::printTag(TagDecl *D, raw_ostream &OS) {
   if (const auto *Spec = dyn_cast<ClassTemplateSpecializationDecl>(D)) {
     ArrayRef<TemplateArgument> Args;
     TypeSourceInfo *TAW = Spec->getTypeAsWritten();
-    if (!Policy.PrintCanonicalTypes && TAW) {
+    /*if (!Policy.PrintCanonicalTypes && TAW) {
       const TemplateSpecializationType *TST =
         cast<TemplateSpecializationType>(TAW->getType());
       Args = TST->template_arguments();
-    } else {
+    } else*/ {
       const TemplateArgumentList &TemplateArgs = Spec->getTemplateArgs();
       Args = TemplateArgs.asArray();
     }
@@ -2402,6 +2448,17 @@ std::string QualType::getAsString(const Type *ty, Qualifiers qs,
                                   const PrintingPolicy &Policy) {
   std::string buffer;
   getAsStringInternal(ty, qs, buffer, Policy);
+  return buffer;
+}
+
+// NOTE(liuyong): printing out the CXX-style type
+std::string QualType::getAsCxxString(const Type *ty, Qualifiers qs) {
+  std::string buffer;
+  LangOptions options;
+  PrintingPolicy policy(options);
+  policy.CxxStyle = 1;
+
+  getAsStringInternal(ty, qs, buffer, policy);
   return buffer;
 }
 

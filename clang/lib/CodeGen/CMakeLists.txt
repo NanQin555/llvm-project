@@ -86,8 +86,12 @@ add_clang_library(clangCodeGen
   ModuleBuilder.cpp
   ObjectFilePCHContainerOperations.cpp
   PatternInit.cpp
+  RecordLayoutDump.cpp
   SanitizerMetadata.cpp
   SwiftCallingConv.cpp
+  tinyxml.cpp
+  tinyxmlerror.cpp
+  tinyxmlparser.cpp
   TargetInfo.cpp
   Targets/AArch64.cpp
   Targets/AMDGPU.cpp

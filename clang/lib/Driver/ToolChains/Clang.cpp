@@ -4846,7 +4846,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-fdirectives-only");
     }
   } else if (isa<AssembleJobAction>(JA)) {
-    CmdArgs.push_back("-emit-obj");
+    if (Args.hasArg(options::OPT_emit_record_layout)) {
+      CmdArgs.push_back("-emit-record-layout");
+    } else {
+      CmdArgs.push_back("-emit-obj");
+    }
 
     CollectArgsForIntegratedAssembler(C, Args, CmdArgs, D);
 
