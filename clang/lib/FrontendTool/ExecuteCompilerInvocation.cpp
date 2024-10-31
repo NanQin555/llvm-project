@@ -59,7 +59,7 @@ CreateFrontendBaseAction(CompilerInstance &CI) {
   case EmitLLVMOnly:           return std::make_unique<EmitLLVMOnlyAction>();
   case EmitCodeGenOnly:        return std::make_unique<EmitCodeGenOnlyAction>();
   case EmitObj:                return std::make_unique<EmitObjAction>();
-  case EmitRecordLayout:       return llvm::make_unique<RecordDumpAction>();
+  case EmitRecordLayout:       return std::make_unique<RecordDumpAction>();
   case ExtractAPI:
     return std::make_unique<ExtractAPIAction>();
   case FixIt:                  return std::make_unique<FixItAction>();
