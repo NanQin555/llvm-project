@@ -52,7 +52,9 @@ export TMPDIR=${TMP_DIR}
 
 MAKER="Unix Makefiles"
 # MAKER="Ninja"
+if [ ! $MAKE_JOB ]; then
 MAKE_JOB=$[$(lscpu  | grep -E "^CPU\(s\):" | awk '{ print $2 }') / 2 + 1]
+fi
 MAKE="make"
 CMAKE="cmake3"
 
