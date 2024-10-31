@@ -100,7 +100,7 @@ class SizeClassAllocator64 {
   // When we know the size class (the region base) we can represent a pointer
   // as a 4-byte integer (offset from the region start shifted right by 4).
   typedef u32 CompactPtrT;
-  static const uptr kCompactPtrScale = 4;
+  static const uptr kCompactPtrScale = 6;
   CompactPtrT PointerToCompactPtr(uptr base, uptr ptr) const {
     return static_cast<CompactPtrT>((ptr - base) >> kCompactPtrScale);
   }
@@ -638,7 +638,7 @@ class SizeClassAllocator64 {
   // kRegionSize should be able to satisfy the largest size class.
   static_assert(kRegionSize >= SizeClassMap::kMaxSize);
   // kRegionSize must be <= 2^36, see CompactPtrT.
-  COMPILER_CHECK((kRegionSize) <= (1ULL << (SANITIZER_WORDSIZE / 2 + 4)));
+  COMPILER_CHECK((kRegionSize) <= (1ULL << (SANITIZER_WORDSIZE / 2 + 6)));
   // Call mmap for user memory with at least this size.
   static const uptr kUserMapSize = 1 << 16;
   // Call mmap for metadata memory with at least this size.

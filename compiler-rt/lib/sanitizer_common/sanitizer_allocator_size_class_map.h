@@ -228,7 +228,7 @@ class SizeClassMap {
   }
 };
 
-typedef SizeClassMap<3, 4, 8, 17, 128, 16> DefaultSizeClassMap;
+typedef SizeClassMap<3, 6, 8, 17, 128, 16> DefaultSizeClassMap;
 typedef SizeClassMap<3, 4, 8, 17, 64, 14> CompactSizeClassMap;
 typedef SizeClassMap<2, 5, 9, 16, 64, 14> VeryCompactSizeClassMap;
 
