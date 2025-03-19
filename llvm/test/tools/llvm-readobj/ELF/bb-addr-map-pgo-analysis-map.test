@@ -1,29 +1,23 @@
-## This test checks how we handle the --bb-addr-map option.
-
-## Fails on windows (https://github.com/llvm/llvm-project/issues/60013).
-# UNSUPPORTED: system-windows
+## This test checks how llvm-readobj prints the PGO Analysis Map with the
+## --bb-addr-map option.
 
 ## Check 64-bit:
-# RUN: yaml2obj --docnum=1 %s -DBITS=64 -DADDR=0x999999999 -o %t1.x64.o
+# RUN: yaml2obj %s -DBITS=64 -DADDR=0x999999999 -o %t1.x64.o
 # RUN: llvm-readobj %t1.x64.o --bb-addr-map 2>&1 | FileCheck %s -DADDR=0x999999999 -DFILE=%t1.x64.o --check-prefix=CHECK
 # RUN: llvm-readelf %t1.x64.o --bb-addr-map | FileCheck %s --check-prefix=GNU
 
-## Check 64-bit:
-# RUN: yaml2obj --docnum=1 %s -DBITS=64 -DADDR=0x999999999 -o %t1.v1.x64.o
-# RUN: llvm-readobj %t1.v1.x64.o --bb-addr-map 2>&1 | FileCheck %s -DADDR=0x999999999 -DFILE=%t1.v1.x64.o --check-prefix=CHECK
-
 ## Check 32-bit:
-# RUN: yaml2obj --docnum=1 %s -DBITS=32 -o %t1.x32.o
+# RUN: yaml2obj %s -DBITS=32 -o %t1.x32.o
 # RUN: llvm-readobj %t1.x32.o --bb-addr-map 2>&1 | FileCheck -DADDR=0x11111 %s -DFILE=%t1.x32.o --check-prefix=CHECK
 # RUN: llvm-readelf %t1.x32.o --bb-addr-map | FileCheck %s --check-prefix=GNU
 
 ## Check that a malformed section can be handled.
-# RUN: yaml2obj --docnum=1 %s -DBITS=32 -DSIZE=7 -o %t2.o
-# RUN: llvm-readobj %t2.o --bb-addr-map 2>&1 | FileCheck %s -DOFFSET=0x00000007 -DFILE=%t2.o --check-prefix=TRUNCATED
+# RUN: yaml2obj %s -DBITS=32 -DSIZE=24 -o %t2.o
+# RUN: llvm-readobj %t2.o --bb-addr-map 2>&1 | FileCheck %s -DOFFSET=0x00000018 -DFILE=%t2.o --check-prefix=TRUNCATED
 
-## Check that invalid metadata can be handled.
-# RUN: yaml2obj --docnum=1 %s -DBITS=32 -DMETADATA=0xF000002 -o %t3.o
-# RUN: llvm-readobj %t3.o --bb-addr-map 2>&1 | FileCheck %s -DFILE=%t3.o --check-prefix=INVALIDMD
+## Check that missing features can be handled.
+# RUN: yaml2obj %s -DBITS=32 -DFEATURE=0x2 -o %t3.o
+# RUN: llvm-readobj %t3.o --bb-addr-map 2>&1 | FileCheck %s -DFILE=%t3.o --check-prefix=INVALIDFT
 
 # CHECK:      BBAddrMap [
 # CHECK-NEXT:   Function {
@@ -44,14 +38,9 @@
 # CHECK-NEXT:             CanFallThrough: No
 # CHECK-NEXT:             HasIndirectBranch: No
 # CHECK-NEXT:           }
-# CHECK-NEXT:         ]
-# CHECK-NEXT:       }
-# CHECK-NEXT:       {
-# CHECK-NEXT:         Base Address: 0x44444
-# CHECK-NEXT:         BB Entries [
 # CHECK-NEXT:           {
 # CHECK-NEXT:             ID: 2
-# CHECK-NEXT:             Offset: 0x3
+# CHECK-NEXT:             Offset: 0x4
 # CHECK-NEXT:             Size: 0x4
 # CHECK-NEXT:             HasReturn: Yes
 # CHECK-NEXT:             HasTailCall: No
@@ -62,6 +51,25 @@
 # CHECK-NEXT:         ]
 # CHECK-NEXT:       }
 # CHECK-NEXT:     ]
+# CHECK-NEXT:     PGO analyses {
+# CHECK-NEXT:       FuncEntryCount: 100
+# CHECK-NEXT:       PGO BB entries [
+# CHECK-NEXT:         {
+# CHECK-NEXT:           Frequency: 100
+# CHECK-NEXT:           Successors [
+# CHECK-NEXT:             {
+# CHECK-NEXT:               ID: 2
+# CHECK-NEXT:               Probability: 0xFFFFFFFF
+# CHECK-NEXT:             }
+# CHECK-NEXT:           ]
+# CHECK-NEXT:         }
+# CHECK-NEXT:         {
+# CHECK-NEXT:           Frequency: 100
+# CHECK-NEXT:           Successors [
+# CHECK-NEXT:           ]
+# CHECK-NEXT:         }
+# CHECK-NEXT:       ]
+# CHECK-NEXT:     }
 # CHECK-NEXT:   }
 # CHECK-NEXT:   Function {
 # CHECK-NEXT:     At: 0x22222
@@ -78,11 +86,19 @@
 # CHECK-NEXT:             HasTailCall: No
 # CHECK-NEXT:             IsEHPad: No
 # CHECK-NEXT:             CanFallThrough: Yes
-# CHECK-NEXT:            HasIndirectBranch: No
+# CHECK-NEXT:             HasIndirectBranch: No
 # CHECK-NEXT:           }
 # CHECK-NEXT:         ]
 # CHECK-NEXT:       }
 # CHECK-NEXT:     ]
+# CHECK-NEXT:     PGO analyses {
+# CHECK-NEXT:       FuncEntryCount: 8888
+# CHECK-NEXT:       PGO BB entries [
+# CHECK-NEXT:         {
+# CHECK-NEXT:           Frequency: 9000
+# CHECK-NEXT:         }
+# CHECK-NEXT:       ]
+# CHECK-NEXT:     }
 # CHECK-NEXT:   }
 # CHECK-NEXT: ]
 
@@ -123,11 +139,13 @@
 # TRUNCATED-NEXT:         ]
 # TRUNCATED-NEXT:       }
 # TRUNCATED-NEXT:     ]
+# TRUNCATED-NEXT:     PGO analyses {
+# TRUNCATED-NEXT:       FuncEntryCount: 89
+# TRUNCATED-NEXT:     }
 # TRUNCATED-NEXT:   }
 # TRUNCATED-NEXT: ]
 
-# INVALIDMD:      BBAddrMap [
-# INVALIDMD-NEXT:   warning: '[[FILE]]': unable to dump SHT_LLVM_BB_ADDR_MAP section with index 3: invalid encoding for BBEntry::Metadata: 0xf000002
+# INVALIDFT:   warning: '[[FILE]]': unable to dump SHT_LLVM_BB_ADDR_MAP section with index 5: unable to decode LEB128 at offset 0x00000010: malformed uleb128, extends past end
 
 --- !ELF
 FileHeader:
@@ -147,21 +165,20 @@ Sections:
     Link:   .text
     Entries:
       - Version: 2
-        Feature: 0x8
+        Feature: 0x7
         BBRanges:
           - BaseAddress: [[ADDR=0x11111]]
             BBEntries:
               - ID:            0
                 AddressOffset: 0x0
                 Size:          0x1
-                Metadata:      [[METADATA=0x2]]
-          - BaseAddress: 0x44444
-            BBEntries:
+                Metadata:      0x2
               - ID:            2
                 AddressOffset: 0x3
                 Size:          0x4
                 Metadata:      0x15
       - Version: 2
+        Feature: 0x3
         BBRanges:
           - BaseAddress: 0x22222
             BBEntries:
@@ -169,6 +186,18 @@ Sections:
                 AddressOffset: 0x6
                 Size:          0x7
                 Metadata:      0x8
+    PGOAnalyses:
+      - FuncEntryCount: 100
+        PGOBBEntries:
+          - BBFreq:        100
+            Successors:
+              - ID:        2
+                BrProb:    0xFFFFFFFF
+          - BBFreq:        100
+            Successors:    []
+      - FuncEntryCount: 8888
+        PGOBBEntries:
+          - BBFreq:        9000
   - Name: dummy_section
     Type: SHT_PROGBITS
     Size: 16
@@ -177,6 +206,7 @@ Sections:
     Link: .text.bar
     Entries:
       - Version: 2
+        Feature: [[FEATURE=0x1]]
         BBRanges:
           - BaseAddress: 0x33333
             BBEntries:
@@ -188,6 +218,8 @@ Sections:
                 AddressOffset: 0xc
                 Size:          0xd
                 Metadata:      0xe
+    PGOAnalyses:
+      - FuncEntryCount: 89
 Symbols:
   - Name:    foo
     Section: .text
