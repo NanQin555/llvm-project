@@ -203,6 +203,9 @@ private:
   /// calculate the size of the basic block, or the BB section ending with it.
   mutable MCSymbol *CachedEndMCSymbol = nullptr;
 
+  /// calculate by Insts, Predecessors, and Successors. Used to match block 
+  /// with stale profile info.
+  uint64_t Hash{0};
   // Intrusive list support
   MachineBasicBlock() = default;
 
@@ -271,6 +274,10 @@ public:
   /// Return the MachineFunction containing this basic block.
   const MachineFunction *getParent() const { return xParent; }
   MachineFunction *getParent() { return xParent; }
+  /// Set the hash value of the machine basic block.
+  void setHash(uint64_t Value) { Hash = Value; }
+  /// Retuen the hash value.
+  uint64_t getHash() const { return Hash; }
 
   using instr_iterator = Instructions::iterator;
   using const_instr_iterator = Instructions::const_iterator;

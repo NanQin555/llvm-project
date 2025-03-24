@@ -71,6 +71,7 @@ void llvm::initializeCodeGen(PassRegistry &Registry) {
   initializeMIRNamerPass(Registry);
   initializeMIRProfileLoaderPassPass(Registry);
   initializeMachineBlockFrequencyInfoPass(Registry);
+  initializeMachineBlockHashInfoPass(Registry);
   initializeMachineBlockPlacementPass(Registry);
   initializeMachineBlockPlacementStatsPass(Registry);
   initializeMachineCFGPrinterPass(Registry);

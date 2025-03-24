@@ -1445,6 +1445,7 @@ void AsmPrinter::emitBBAddrMapSection(const MachineFunction &MF) {
     emitLabelDifferenceAsULEB128(MBB.getEndSymbol(), MBBSymbol);
     // Emit the Metadata.
     OutStreamer->emitULEB128IntValue(getBBAddrMapMetadata(MBB));
+    OutStreamer->emitULEB128IntValue(MBB.getHash());
     PrevMBBEndSymbol = MBB.getEndSymbol();
   }
 

@@ -12,8 +12,8 @@
 # RUN: llvm-readelf %t1.x32.o --bb-addr-map | FileCheck %s --check-prefix=GNU
 
 ## Check that a malformed section can be handled.
-# RUN: yaml2obj %s -DBITS=32 -DSIZE=24 -o %t2.o
-# RUN: llvm-readobj %t2.o --bb-addr-map 2>&1 | FileCheck %s -DOFFSET=0x00000018 -DFILE=%t2.o --check-prefix=TRUNCATED
+# RUN: yaml2obj %s -DBITS=32 -DSIZE=27 -o %t2.o
+# RUN: llvm-readobj %t2.o --bb-addr-map 2>&1 | FileCheck %s -DOFFSET=0x0000001b -DFILE=%t2.o --check-prefix=TRUNCATED
 
 ## Check that missing features can be handled.
 # RUN: yaml2obj %s -DBITS=32 -DFEATURE=0x2 -o %t3.o
@@ -37,6 +37,7 @@
 # CHECK-NEXT:             IsEHPad: No
 # CHECK-NEXT:             CanFallThrough: No
 # CHECK-NEXT:             HasIndirectBranch: No
+# CHECK-NEXT:             Hash: 0x1
 # CHECK-NEXT:           }
 # CHECK-NEXT:           {
 # CHECK-NEXT:             ID: 2
@@ -47,6 +48,7 @@
 # CHECK-NEXT:             IsEHPad: Yes
 # CHECK-NEXT:             CanFallThrough: No
 # CHECK-NEXT:             HasIndirectBranch: Yes
+# CHECK-NEXT:             Hash: 0x2
 # CHECK-NEXT:           }
 # CHECK-NEXT:         ]
 # CHECK-NEXT:       }
@@ -87,6 +89,7 @@
 # CHECK-NEXT:             IsEHPad: No
 # CHECK-NEXT:             CanFallThrough: Yes
 # CHECK-NEXT:             HasIndirectBranch: No
+# CHECK-NEXT:             Hash: 0x3
 # CHECK-NEXT:           }
 # CHECK-NEXT:         ]
 # CHECK-NEXT:       }
@@ -125,6 +128,7 @@
 # TRUNCATED-NEXT:             IsEHPad: No
 # TRUNCATED-NEXT:             CanFallThrough: Yes
 # TRUNCATED-NEXT:             HasIndirectBranch: Yes
+# TRUNCATED-NEXT:             Hash: 0x4
 # TRUNCATED-NEXT:           }
 # TRUNCATED-NEXT:           {
 # TRUNCATED-NEXT:             ID: 7
@@ -135,6 +139,7 @@
 # TRUNCATED-NEXT:             IsEHPad: Yes
 # TRUNCATED-NEXT:             CanFallThrough: Yes
 # TRUNCATED-NEXT:             HasIndirectBranch: No
+# TRUNCATED-NEXT:             Hash: 0x5
 # TRUNCATED-NEXT:           }
 # TRUNCATED-NEXT:         ]
 # TRUNCATED-NEXT:       }
@@ -145,7 +150,7 @@
 # TRUNCATED-NEXT:   }
 # TRUNCATED-NEXT: ]
 
-# INVALIDFT:   warning: '[[FILE]]': unable to dump SHT_LLVM_BB_ADDR_MAP section with index 5: unable to decode LEB128 at offset 0x00000010: malformed uleb128, extends past end
+# INVALIDFT:   warning: '[[FILE]]': unable to dump SHT_LLVM_BB_ADDR_MAP section with index 5: unable to decode LEB128 at offset 0x00000012: malformed uleb128, extends past end
 
 --- !ELF
 FileHeader:
@@ -173,10 +178,12 @@ Sections:
                 AddressOffset: 0x0
                 Size:          0x1
                 Metadata:      0x2
+                Hash:          0x1
               - ID:            2
                 AddressOffset: 0x3
                 Size:          0x4
                 Metadata:      0x15
+                Hash:          0x2
       - Version: 2
         Feature: 0x3
         BBRanges:
@@ -186,6 +193,7 @@ Sections:
                 AddressOffset: 0x6
                 Size:          0x7
                 Metadata:      0x8
+                Hash:          0x3
     PGOAnalyses:
       - FuncEntryCount: 100
         PGOBBEntries:
@@ -214,10 +222,12 @@ Sections:
                 AddressOffset: 0x9
                 Size:          0xa
                 Metadata:      0x1b
+                Hash:          0x4
               - ID:            7
                 AddressOffset: 0xc
                 Size:          0xd
                 Metadata:      0xe
+                Hash:          0x5
     PGOAnalyses:
       - FuncEntryCount: 89
 Symbols:

@@ -25,14 +25,17 @@
 # VALID-NEXT:               AddressOffset: 0x1
 # VALID-NEXT:               Size:          0x2
 # VALID-NEXT:               Metadata:      0x3
+# VALID-NEXT:               Hash:          0x1
 # VALID-NEXT:             - ID:            2
 # VALID-NEXT:               AddressOffset: 0x4
 # VALID-NEXT:               Size:          0x5
 # VALID-NEXT:               Metadata:      0x6
+# VALID-NEXT:               Hash:          0x2
 # VALID-NEXT:             - ID:            4
 # VALID-NEXT:               AddressOffset: 0xFFFFFFFFFFFFFFF7
 # VALID-NEXT:               Size:          0xFFFFFFFFFFFFFFF8
 # VALID-NEXT:               Metadata:      0xFFFFFFFFFFFFFFF9
+# VALID-NEXT:               Hash:          0xFFFFFFFFFFFFFFFA
 # VALID-NEXT:       - Version: 2
 # VALID-NEXT:         Feature: 0x8
 # VALID-NEXT:         BBRanges:
@@ -42,6 +45,7 @@
 # VALID-NEXT:                 AddressOffset: 0xA
 # VALID-NEXT:                 Size:          0xB
 # VALID-NEXT:                 Metadata:      0xC
+# VALID-NEXT:                 Hash:          0xD
 
 --- !ELF
 FileHeader:
@@ -62,14 +66,17 @@ Sections:
                 AddressOffset: 0x1
                 Size:          0x2
                 Metadata:      0x3
+                Hash:          0x1
               - ID:            2
                 AddressOffset: 0x4
                 Size:          0x5
                 Metadata:      0x6
+                Hash:          0x2
               - ID:            4
                 AddressOffset: 0xFFFFFFFFFFFFFFF7
                 Size:          0xFFFFFFFFFFFFFFF8
                 Metadata:      0xFFFFFFFFFFFFFFF9
+                Hash:          0xFFFFFFFFFFFFFFFA
       - Version:   2
         Feature:   0x8
         NumBBRanges: [[NUMBBRANGES=<none>]]
@@ -81,6 +88,7 @@ Sections:
                AddressOffset: 0xA
                Size:          0xB
                Metadata:      0xC
+               Hash:          0xD
 
 ## Check obj2yaml can dump empty .llvm_bb_addr_map sections.
 
@@ -129,6 +137,7 @@ Sections:
 # MULTI-NEXT:                AddressOffset: 0x1
 # MULTI-NEXT:                Size:          0x2
 # MULTI-NEXT:                Metadata:      0x3
+# MULTI-NEXT:                Hash:          0x4
 # MULTI-NEXT:   - Name: '.llvm_bb_addr_map (1)'
 # MULTI-NEXT:     Type: SHT_LLVM_BB_ADDR_MAP
 # MULTI-NEXT:     Entries:
@@ -156,6 +165,7 @@ Sections:
               - AddressOffset: 0x1
                 Size:          0x2
                 Metadata:      0x3
+                Hash:          0x4
   - Name: '.llvm_bb_addr_map (1)'
     Type:  SHT_LLVM_BB_ADDR_MAP
     Entries:

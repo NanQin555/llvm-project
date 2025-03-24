@@ -508,6 +508,7 @@ Sections:
               - AddressOffset: 0x0
                 Size:          0x1
                 Metadata:      0x2
+                Hash:          0x1
 )";
 
   {
@@ -538,6 +539,7 @@ Sections:
               - AddressOffset: 0x0
                 Size:          0x1
                 Metadata:      0x2
+                Hash:          0x1
 )";
 
   // Check that we can detect the malformed encoding when the section is
@@ -562,6 +564,7 @@ Sections:
                 AddressOffset: 0x100000000
                 Size:          0xFFFFFFFF
                 Metadata:      0xFFFFFFFF
+                Hash:          0xFFFFFFFF
 )";
 
   OverInt32LimitYamlStrings[1] += R"(
@@ -569,6 +572,7 @@ Sections:
                 AddressOffset: 0xFFFFFFFF
                 Size:          0x100000000
                 Metadata:      0xFFFFFFFF
+                Hash:          0xFFFFFFFF
 )";
 
   OverInt32LimitYamlStrings[2] += R"(
@@ -576,16 +580,17 @@ Sections:
                 AddressOffset: 0xFFFFFFFF
                 Size:          0xFFFFFFFF
                 Metadata:      0x100000000
+                Hash:          0xFFFFFFFF
 )";
 
   {
     SCOPED_TRACE("overlimit fields");
     DoCheck(OverInt32LimitYamlStrings[0],
-            "ULEB128 value at offset 0x10 exceeds UINT32_MAX (0x100000000)");
+            "ULEB128 value at offset 0x11 exceeds UINT32_MAX (0x100000000)");
     DoCheck(OverInt32LimitYamlStrings[1],
-            "ULEB128 value at offset 0x15 exceeds UINT32_MAX (0x100000000)");
+            "ULEB128 value at offset 0x16 exceeds UINT32_MAX (0x100000000)");
     DoCheck(OverInt32LimitYamlStrings[2],
-            "ULEB128 value at offset 0x1a exceeds UINT32_MAX (0x100000000)");
+            "ULEB128 value at offset 0x1b exceeds UINT32_MAX (0x100000000)");
   }
 
   // Check the proper error handling when the section has fields exceeding
@@ -595,26 +600,26 @@ Sections:
       3, OverInt32LimitYamlStrings[1]);
   // Truncate before the end of the 5-byte field.
   OverInt32LimitAndTruncated[0] += R"(
-    ShSize: 0x19
+    ShSize: 0x1a
 )";
   // Truncate at the end of the 5-byte field.
   OverInt32LimitAndTruncated[1] += R"(
-    ShSize: 0x1a
+    ShSize: 0x1b
 )";
   // Truncate after the end of the 5-byte field.
   OverInt32LimitAndTruncated[2] += R"(
-    ShSize: 0x1b
+    ShSize: 0x1c
 )";
 
   {
     SCOPED_TRACE("overlimit fields, truncated section");
     DoCheck(OverInt32LimitAndTruncated[0],
-            "unable to decode LEB128 at offset 0x00000015: malformed uleb128, "
+            "unable to decode LEB128 at offset 0x00000016: malformed uleb128, "
             "extends past end");
     DoCheck(OverInt32LimitAndTruncated[1],
-            "ULEB128 value at offset 0x15 exceeds UINT32_MAX (0x100000000)");
+            "ULEB128 value at offset 0x16 exceeds UINT32_MAX (0x100000000)");
     DoCheck(OverInt32LimitAndTruncated[2],
-            "ULEB128 value at offset 0x15 exceeds UINT32_MAX (0x100000000)");
+            "ULEB128 value at offset 0x16 exceeds UINT32_MAX (0x100000000)");
   }
 
   // Check for proper error handling when the 'NumBlocks' field is overridden
@@ -662,6 +667,7 @@ Sections:
                 AddressOffset: 0x0
                 Size:          0x1
                 Metadata:      0x2
+                Hash:          0x4
   - Name: .llvm_bb_addr_map_2
     Type: SHT_LLVM_BB_ADDR_MAP
     Link: 1
@@ -675,12 +681,14 @@ Sections:
                 AddressOffset: 0x0
                 Size:          0x2
                 Metadata:      0x4
+                Hash:          0x5
           - BaseAddress: 0xFFFFF
             BBEntries:
               - ID:            15
                 AddressOffset: 0xF0
                 Size:          0xF1
                 Metadata:      0x1F
+                Hash:          0x6
   - Name: .llvm_bb_addr_map_3
     Type: SHT_LLVM_BB_ADDR_MAP
     Link: 2
@@ -693,6 +701,7 @@ Sections:
                 AddressOffset: 0x0
                 Size:          0x3
                 Metadata:      0x6
+                Hash:          0x7
   - Name: .llvm_bb_addr_map_4
     Type: SHT_LLVM_BB_ADDR_MAP
   # Link: 0 (by default, can be overriden)
@@ -705,17 +714,18 @@ Sections:
                 AddressOffset: 0x0
                 Size:          0x4
                 Metadata:      0x18
+                Hash:          0x8
 )");
 
   BBAddrMap E1 = {
-      {{0x11111, {{1, 0x0, 0x1, {false, true, false, false, false}}}}}};
+      {{0x11111, {{1, 0x0, 0x1, {false, true, false, false, false}, 0x4}}}}};
   BBAddrMap E2 = {
-      {{0x22222, {{2, 0x0, 0x2, {false, false, true, false, false}}}},
-       {0xFFFFF, {{15, 0xF0, 0xF1, {true, true, true, true, true}}}}}};
+      {{0x22222, {{2, 0x0, 0x2, {false, false, true, false, false}, 0x5}}},
+       {0xFFFFF, {{15, 0xF0, 0xF1, {true, true, true, true, true}, 0x6}}}}};
   BBAddrMap E3 = {
-      {{0x33333, {{0, 0x0, 0x3, {false, true, true, false, false}}}}}};
+      {{0x33333, {{0, 0x0, 0x3, {false, true, true, false, false}, 0x7}}}}};
   BBAddrMap E4 = {
-      {{0x44444, {{0, 0x0, 0x4, {false, false, false, true, true}}}}}};
+      {{0x44444, {{0, 0x0, 0x4, {false, false, false, true, true}, 0x8}}}}};
 
   std::vector<BBAddrMap> Section0BBAddrMaps = {E4};
   std::vector<BBAddrMap> Section1BBAddrMaps = {E3};
@@ -857,6 +867,7 @@ Sections:
               - AddressOffset: 0x0
                 Size:          0x1
                 Metadata:      0x2
+                Hash:          0x1
 )";
 
   {
@@ -875,6 +886,7 @@ Sections:
                 AddressOffset: 0x0
                 Size:          0x1
                 Metadata:      0x2
+                Hash:          0x1
 )";
 
   // Check that we fail when function entry count is enabled but not provided.
@@ -901,11 +913,12 @@ Sections:
                 AddressOffset: 0x0
                 Size:          0x1
                 Metadata:      0x2
+                Hash:          0x1
 )";
 
   {
     SCOPED_TRACE("missing bb frequency");
-    DoCheck(MissingBBFreq, "unable to decode LEB128 at offset 0x0000000f: "
+    DoCheck(MissingBBFreq, "unable to decode LEB128 at offset 0x00000010: "
                            "malformed uleb128, extends past end");
   }
 
@@ -920,14 +933,17 @@ Sections:
                 AddressOffset: 0x0
                 Size:          0x1
                 Metadata:      0x6
+                Hash:          0x1
               - ID:            2
                 AddressOffset: 0x1
                 Size:          0x1
                 Metadata:      0x2
+                Hash:          0x2
               - ID:            3
                 AddressOffset: 0x2
                 Size:          0x1
                 Metadata:      0x2
+                Hash:          0x3
     PGOAnalyses:
       - PGOBBEntries:
          - Successors:
@@ -942,7 +958,7 @@ Sections:
 
   {
     SCOPED_TRACE("missing branch probability");
-    DoCheck(MissingBrProb, "unable to decode LEB128 at offset 0x00000017: "
+    DoCheck(MissingBrProb, "unable to decode LEB128 at offset 0x0000001a: "
                            "malformed uleb128, extends past end");
   }
 }
@@ -969,6 +985,7 @@ Sections:
                 AddressOffset: 0x0
                 Size:          0x1
                 Metadata:      0x2
+                Hash:          0x1
     PGOAnalyses:
       - FuncEntryCount: 892
   - Name: .llvm_bb_addr_map_2
@@ -984,6 +1001,7 @@ Sections:
                 AddressOffset: 0x0
                 Size:          0x2
                 Metadata:      0x4
+                Hash:          0x2
     PGOAnalyses:
       - PGOBBEntries:
          - BBFreq:         343
@@ -1000,14 +1018,17 @@ Sections:
                 AddressOffset: 0x0
                 Size:          0x3
                 Metadata:      0x6
+                Hash:          0x3
               - ID:            1
                 AddressOffset: 0x0
                 Size:          0x3
                 Metadata:      0x4
+                Hash:          0x4
               - ID:            2
                 AddressOffset: 0x0
                 Size:          0x3
                 Metadata:      0x0
+                Hash:          0x5
     PGOAnalyses:
       - PGOBBEntries:
          - Successors:
@@ -1032,18 +1053,22 @@ Sections:
                 AddressOffset: 0x0
                 Size:          0x4
                 Metadata:      0x18
+                Hash:          0x6
               - ID:            1
                 AddressOffset: 0x0
                 Size:          0x4
                 Metadata:      0x0
+                Hash:          0x7
               - ID:            2
                 AddressOffset: 0x0
                 Size:          0x4
                 Metadata:      0x0
+                Hash:          0x8
               - ID:            3
                 AddressOffset: 0x0
                 Size:          0x4
                 Metadata:      0x0
+                Hash:          0x9
     PGOAnalyses:
       - FuncEntryCount: 1000
         PGOBBEntries:
@@ -1080,6 +1105,7 @@ Sections:
                 AddressOffset: 0x0
                 Size:          0x2
                 Metadata:      0x4
+                Hash:          0xa
     PGOAnalyses: [{}]
   - Name: .llvm_bb_addr_map_6
     Type: SHT_LLVM_BB_ADDR_MAP
@@ -1094,16 +1120,19 @@ Sections:
                 AddressOffset: 0x0
                 Size:          0x6
                 Metadata:      0x6
+                Hash:          0xb
               - ID:            1
                 AddressOffset: 0x0
                 Size:          0x6
                 Metadata:      0x4
+                Hash:          0xc
           - BaseAddress: 0x666661
             BBEntries:
               - ID:            2
                 AddressOffset: 0x0
                 Size:          0x6
                 Metadata:      0x0
+                Hash:          0xd
     PGOAnalyses:
       - PGOBBEntries:
          - Successors:
@@ -1118,16 +1147,16 @@ Sections:
 )");
 
   BBAddrMap E1 = {
-      {{0x11111, {{1, 0x0, 0x1, {false, true, false, false, false}}}}}};
+      {{0x11111, {{1, 0x0, 0x1, {false, true, false, false, false}, 0x1}}}}};
   PGOAnalysisMap P1 = {892, {}, {true, false, false, false}};
   BBAddrMap E2 = {
-      {{0x22222, {{2, 0x0, 0x2, {false, false, true, false, false}}}}}};
+      {{0x22222, {{2, 0x0, 0x2, {false, false, true, false, false}, 0x2}}}}};
   PGOAnalysisMap P2 = {
       {}, {{BlockFrequency(343), {}}}, {false, true, false, false}};
   BBAddrMap E3 = {{{0x33333,
-                    {{0, 0x0, 0x3, {false, true, true, false, false}},
-                     {1, 0x3, 0x3, {false, false, true, false, false}},
-                     {2, 0x6, 0x3, {false, false, false, false, false}}}}}};
+                    {{0, 0x0, 0x3, {false, true, true, false, false}, 0x3},
+                     {1, 0x3, 0x3, {false, false, true, false, false}, 0x4},
+                     {2, 0x6, 0x3, {false, false, false, false, false}, 0x5}}}}};
   PGOAnalysisMap P3 = {{},
                        {{{},
                          {{1, BranchProbability::getRaw(0x1111'1111)},
@@ -1136,10 +1165,10 @@ Sections:
                         {{}, {}}},
                        {false, false, true, false}};
   BBAddrMap E4 = {{{0x44444,
-                    {{0, 0x0, 0x4, {false, false, false, true, true}},
-                     {1, 0x4, 0x4, {false, false, false, false, false}},
-                     {2, 0x8, 0x4, {false, false, false, false, false}},
-                     {3, 0xc, 0x4, {false, false, false, false, false}}}}}};
+                    {{0, 0x0, 0x4, {false, false, false, true, true}, 0x6},
+                     {1, 0x4, 0x4, {false, false, false, false, false}, 0x7},
+                     {2, 0x8, 0x4, {false, false, false, false, false}, 0x8},
+                     {3, 0xc, 0x4, {false, false, false, false, false}, 0x9}}}}};
   PGOAnalysisMap P4 = {
       1000,
       {{BlockFrequency(1000),
@@ -1153,13 +1182,13 @@ Sections:
        {BlockFrequency(1000), {}}},
       {true, true, true, false}};
   BBAddrMap E5 = {
-      {{0x55555, {{2, 0x0, 0x2, {false, false, true, false, false}}}}}};
+      {{0x55555, {{2, 0x0, 0x2, {false, false, true, false, false}, 0xa}}}}};
   PGOAnalysisMap P5 = {{}, {}, {false, false, false, false}};
   BBAddrMap E6 = {
       {{0x66666,
-        {{0, 0x0, 0x6, {false, true, true, false, false}},
-         {1, 0x6, 0x6, {false, false, true, false, false}}}},
-       {0x666661, {{2, 0x0, 0x6, {false, false, false, false, false}}}}}};
+        {{0, 0x0, 0x6, {false, true, true, false, false}, 0xb},
+         {1, 0x6, 0x6, {false, false, true, false, false}, 0xc}}},
+       {0x666661, {{2, 0x0, 0x6, {false, false, false, false, false}, 0xd}}}}};
   PGOAnalysisMap P6 = {{},
                        {{{},
                          {{1, BranchProbability::getRaw(0x2222'2222)},

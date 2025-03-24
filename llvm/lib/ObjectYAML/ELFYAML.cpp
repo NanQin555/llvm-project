@@ -1825,6 +1825,7 @@ void MappingTraits<ELFYAML::BBAddrMapEntry::BBEntry>::mapping(
   IO.mapRequired("AddressOffset", E.AddressOffset);
   IO.mapRequired("Size", E.Size);
   IO.mapRequired("Metadata", E.Metadata);
+  IO.mapRequired("Hash", E.Hash);
 }
 
 void MappingTraits<ELFYAML::PGOAnalysisMapEntry>::mapping(
