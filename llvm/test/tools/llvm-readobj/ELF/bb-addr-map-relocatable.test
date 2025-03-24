@@ -24,6 +24,7 @@
 # CHECK-NEXT:             IsEHPad: No
 # CHECK-NEXT:             CanFallThrough: No
 # CHECK-NEXT:             HasIndirectBranch: No
+# CHECK-NEXT:             Hash: 0x1
 # CHECK-NEXT:           }
 # CHECK-NEXT:         ]
 # CHECK-NEXT:       }
@@ -45,6 +46,7 @@
 # CHECK-NEXT:             IsEHPad: No
 # CHECK-NEXT:             CanFallThrough: Yes
 # CHECK-NEXT:             HasIndirectBranch: No
+# CHECK-NEXT:             Hash: 0x2
 # CHECK-NEXT:           }
 # CHECK-NEXT:         ]
 # CHECK-NEXT:       }
@@ -73,6 +75,7 @@ Sections:
               AddressOffset:   0x0
               Size:            0xF
               Metadata:        0x1
+              Hash:            0x1
       - Version: 2
         BBRanges:
           - BBEntries:
@@ -80,6 +83,7 @@ Sections:
                AddressOffset:   0x0
                Size:            0x11
                Metadata:        0x8
+               Hash:            0x2
   - Name:  .rela.llvm_bb_addr_map
     Type:  SHT_RELA
     Flags: [ SHF_INFO_LINK ]
@@ -89,7 +93,7 @@ Sections:
       - Offset: 0x2
         Symbol: .text
         Type:   R_X86_64_64
-      - Offset: 0x11
+      - Offset: 0x12
         Symbol: .text
         Type:   R_X86_64_64
         Addend: 16
@@ -149,6 +153,7 @@ Sections:
             AddressOffset:   0x0
             Size:            0xF
             Metadata:        0x1
+            Hash:            0x1
   - Name:  .rela.llvm_bb_addr_map
     Type:  SHT_RELA
     Flags: [ SHF_INFO_LINK ]
@@ -204,6 +209,7 @@ Sections:
                AddressOffset:   0x0
                Size:            0xF
                Metadata:        0x1
+               Hash:            0x1
 
 # RUN: yaml2obj %s --docnum=5 -o %t5.o
 # RUN: llvm-readobj %t5.o --bb-addr-map 2>&1 | FileCheck %s --check-prefix=ET-DYN-NO-WARNING -DFILE=%t5.o
@@ -225,6 +231,7 @@ Sections:
 # ET-DYN-NO-WARNING:             IsEHPad: No
 # ET-DYN-NO-WARNING:             CanFallThrough: No
 # ET-DYN-NO-WARNING:             HasIndirectBranch: No
+# ET-DYN-NO-WARNING:             Hash: 0x1
 # ET-DYN-NO-WARNING:           }
 # ET-DYN-NO-WARNING:         ]
 # ET-DYN-NO-WARNING:       }
