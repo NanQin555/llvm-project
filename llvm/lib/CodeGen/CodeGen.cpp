@@ -20,6 +20,7 @@ using namespace llvm;
 void llvm::initializeCodeGen(PassRegistry &Registry) {
   initializeAssignmentTrackingAnalysisPass(Registry);
   initializeAtomicExpandPass(Registry);
+  initializeFuncHotBBHashesProfileReaderPass(Registry);
   initializeBasicBlockPathCloningPass(Registry);
   initializeBasicBlockSectionsPass(Registry);
   initializeBranchFolderPassPass(Registry);
@@ -72,6 +73,7 @@ void llvm::initializeCodeGen(PassRegistry &Registry) {
   initializeMIRProfileLoaderPassPass(Registry);
   initializeMachineBlockFrequencyInfoPass(Registry);
   initializeMachineBlockHashInfoPass(Registry);
+  initializeHotMachineBasicBlockInfoGeneratorPass(Registry);
   initializeMachineBlockPlacementPass(Registry);
   initializeMachineBlockPlacementStatsPass(Registry);
   initializeMachineCFGPrinterPass(Registry);

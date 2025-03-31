@@ -1330,6 +1330,10 @@ def fprofile_sample_use_EQ : Joined<["-"], "fprofile-sample-use=">,
     Group<f_Group>, Flags<[NoXarchOption, CC1Option]>,
     HelpText<"Enable sample-based profile guided optimizations">,
     MarshallingInfoString<CodeGenOpts<"SampleProfileFile">>;
+def fpropeller_profile_use_EQ : Joined<["-"], "fpropeller-profile-use=">,
+    Group<f_Group>, Flags<[CC1Option, CoreOption]>, MetaVarName<"<pathname>">,
+    HelpText<"Use propeller profile for profile-guided optimization">,
+    MarshallingInfoString<CodeGenOpts<"PropellerProfileFile">>;
 def fprofile_sample_accurate : Flag<["-"], "fprofile-sample-accurate">,
     Group<f_Group>, Flags<[NoXarchOption, CC1Option]>,
     HelpText<"Specifies that the sample profile is accurate">,

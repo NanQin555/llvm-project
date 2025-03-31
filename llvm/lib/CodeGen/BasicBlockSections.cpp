@@ -72,11 +72,12 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/BasicBlockSectionUtils.h"
 #include "llvm/CodeGen/BasicBlockSectionsProfileReader.h"
-#include "llvm/CodeGen/MachineBlockHashInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
+#include "llvm/CodeGen/MachineBlockHashInfo.h"
+#include "llvm/CodeGen/HotMachineBasicBlockInfoGenerator.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Target/TargetMachine.h"
 #include <optional>
@@ -104,7 +105,6 @@ class BasicBlockSections : public MachineFunctionPass {
 public:
   static char ID;
 
-  BasicBlockSectionsProfileReader *BBSectionsProfileReader = nullptr;
 
   BasicBlockSections() : MachineFunctionPass(ID) {
     initializeBasicBlockSectionsPass(*PassRegistry::getPassRegistry());
@@ -135,6 +135,7 @@ INITIALIZE_PASS_BEGIN(
     false, false)
 INITIALIZE_PASS_DEPENDENCY(BasicBlockSectionsProfileReader)
 INITIALIZE_PASS_DEPENDENCY(MachineBlockHashInfo)
+INITIALIZE_PASS_DEPENDENCY(HotMachineBasicBlockInfoGenerator)
 INITIALIZE_PASS_END(BasicBlockSections, "bbsections-prepare",
                     "Prepares for basic block sections, by splitting functions "
                     "into clusters of basic blocks.",
@@ -172,6 +173,25 @@ updateBranches(MachineFunction &MF,
       continue;
     MBB.updateTerminator(FTMBB);
   }
+}
+std::pair<bool, SmallVector<BBClusterInfo>> 
+createBBClusterInfoForFunction(
+    const MachineFunction &MF, 
+    HotMachineBasicBlockInfoGenerator *HotBBGenerator) {
+  unsigned CurrentCluster = 0;
+  auto OptHotBBs = HotBBGenerator->getHotMBBs(MF.getName());
+  if (!OptHotBBs)
+    return std::pair(false, SmallVector<BBClusterInfo>{});
+  auto& HotMBBs = *OptHotBBs;
+  if(!HotMBBs.empty()) {
+    SmallVector<BBClusterInfo, 4> BBClusterInfos;
+    unsigned CurrentPosition = 0;
+    for (auto &MBB : HotMBBs) {
+      BBClusterInfos.push_back({*(MBB->getBBID()), CurrentCluster, CurrentPosition++});
+    }
+    return std::pair(true, std::move(BBClusterInfos));
+  }
+  return std::pair(false, SmallVector<BBClusterInfo>{});
 }
 
 // This function sorts basic blocks according to the cluster's information.
@@ -288,6 +308,11 @@ bool llvm::hasInstrProfHashMismatch(MachineFunction &MF) {
 // according to the specification provided by the -fbasic-block-sections flag.
 bool BasicBlockSections::handleBBSections(MachineFunction &MF) {
   auto BBSectionsType = MF.getTarget().getBBSectionsType();
+  auto PGOOpt = MF.getTarget().getPGOOption();
+  bool HavePropellerProfile = PGOOpt && !PGOOpt->PropellerProfileFile.empty();
+  if (HavePropellerProfile) {
+    BBSectionsType = BasicBlockSection::List;
+  }
   if (BBSectionsType == BasicBlockSection::None)
     return false;
 
@@ -297,7 +322,7 @@ bool BasicBlockSections::handleBBSections(MachineFunction &MF) {
   // clusters of basic blocks using basic block ids. Source drift can
   // invalidate these groupings leading to sub-optimal code generation with
   // regards to performance.
-  if (BBSectionsType == BasicBlockSection::List &&
+  if (BBSectionsType == BasicBlockSection::List && !HavePropellerProfile &&
       hasInstrProfHashMismatch(MF))
     return false;
   // Renumber blocks before sorting them. This is useful for accessing the
@@ -311,12 +336,16 @@ bool BasicBlockSections::handleBBSections(MachineFunction &MF) {
 
   DenseMap<UniqueBBID, BBClusterInfo> FuncClusterInfo;
   if (BBSectionsType == BasicBlockSection::List) {
-    auto [HasProfile, ClusterInfo] =
+    std::pair<bool, SmallVector<BBClusterInfo>> ExpClusterInfo =
         getAnalysis<BasicBlockSectionsProfileReader>()
             .getClusterInfoForFunction(MF.getName());
-    if (!HasProfile)
+    if (!ExpClusterInfo.first) {
+        auto HotBBGenerator = &getAnalysis<HotMachineBasicBlockInfoGenerator>();
+        ExpClusterInfo = createBBClusterInfoForFunction(MF, HotBBGenerator);
+    }
+    if (!ExpClusterInfo.first)
       return false;
-    for (auto &BBClusterInfo : ClusterInfo) {
+    for (auto &BBClusterInfo : ExpClusterInfo.second) {
       FuncClusterInfo.try_emplace(BBClusterInfo.BBID, BBClusterInfo);
     }
   }
@@ -394,6 +423,7 @@ void BasicBlockSections::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<BasicBlockSectionsProfileReader>();
   AU.addRequired<MachineBlockHashInfo>();
+  AU.addRequired<HotMachineBasicBlockInfoGenerator>();
   MachineFunctionPass::getAnalysisUsage(AU);
 }
 

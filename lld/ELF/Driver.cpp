@@ -1075,6 +1075,72 @@ static SmallVector<StringRef, 0> getSymbolOrderingFile(MemoryBufferRef mb) {
   return names.takeVector();
 }
 
+struct HotBBInfo{
+  uint32_t TotalBBSize = 0;
+  uint32_t HotBBSize = 0;
+};
+static SmallVector<StringRef, 0> generateSymbolOrderingFromPropellerProfile(MemoryBufferRef mb) {
+  SmallVector<std::pair<StringRef, HotBBInfo>> names;
+  SmallVector<HotBBInfo *> hotBBInfos;
+  uint32_t line = 0;
+  for (StringRef s : args::getLines(mb)) {
+    line++;
+    if (!s.consume_front("!") || s.empty()) {
+      error("invalid propeller profile at line: " + Twine(line));
+    }
+    if (s.consume_front("!")) {
+      SmallVector<StringRef, 3> HotBB;
+      s.split(HotBB, ' ');
+      if (HotBB.size() != 3)
+        error("invalid propeller profile at line: " + Twine(line));
+      HotBB[0].consume_front("0x");
+      unsigned long long Hash, Freq, BBID;
+      if (getAsUnsignedInteger(HotBB[0], 16, Hash))
+        error("invalid propeller profile at line: " + Twine(line));
+      if (getAsUnsignedInteger(HotBB[1], 10, Freq))
+        error("invalid propeller profile at line: " + Twine(line));
+      if (getAsUnsignedInteger(HotBB[2], 10, BBID))
+        error("invalid propeller profile at line: " + Twine(line));
+      if (Freq > 0 || BBID == 0) {
+        for (auto hotBBInfo : hotBBInfos) {
+          hotBBInfo->HotBBSize++;
+        }
+      }
+    }
+    else {
+      hotBBInfos.clear();
+      SmallVector<StringRef, 2> NamesWithTotalBBSize;
+      s.split(NamesWithTotalBBSize, ' ');
+      if (NamesWithTotalBBSize.size() != 2)
+        error("invalid propeller profile at line: " + Twine(line));
+      unsigned long long TotalBBSize;
+      if (getAsUnsignedInteger(NamesWithTotalBBSize[1], 10, TotalBBSize))
+        error("invalid propeller profile at line: " + Twine(line));
+      SmallVector<StringRef> funcNames;
+      NamesWithTotalBBSize[0].split(funcNames, '/');
+      for (auto funcName : funcNames) {
+        names.push_back({funcName, {static_cast<uint32_t>(TotalBBSize), 0}});
+        hotBBInfos.push_back(&names.back().second);
+      }
+    }
+  }
+  SmallVector<StringRef, 0> symorders;
+  static std::vector<std::string> storedStrings;
+  for (auto item : names) {
+    if (item.second.HotBBSize > 0) {
+      symorders.push_back(item.first);
+    }
+  }
+  for (auto item : names) {
+    if (item.second.HotBBSize != item.second.TotalBBSize) {
+      std::string str(item.first.str());
+      str.append(".cold");
+      storedStrings.push_back(str);
+      symorders.emplace_back(storedStrings.back());
+    }
+  }
+  return symorders;
+}
 static bool getIsRela(opt::InputArgList &args) {
   // If -z rel or -z rela is specified, use the last option.
   for (auto *arg : args.filtered_reverse(OPT_z)) {
@@ -1598,6 +1664,16 @@ static void readConfigs(opt::InputArgList &args) {
     }
   }
 
+  if (auto *arg = args.getLastArg(OPT_propeller_profile_use)){
+    if (args.hasArg(OPT_call_graph_ordering_file) || args.hasArg(OPT_symbol_ordering_file))
+      error("--propeller-profile-use and --symbol-ordering-file and --call-graph-order-file "
+            "may not be used together");
+    if (std::optional<MemoryBufferRef> buffer = readFile(arg->getValue())) {
+      config->ltoPropellerProfile = arg->getValue();
+      config->symbolOrderingFile = generateSymbolOrderingFromPropellerProfile(*buffer);
+      config->callGraphProfileSort = false;
+    }
+  }
   assert(config->versionDefinitions.empty());
   config->versionDefinitions.push_back(
       {"local", (uint16_t)VER_NDX_LOCAL, {}, {}});

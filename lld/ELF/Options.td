@@ -368,6 +368,8 @@ def print_map: F<"print-map">,
 def print_memory_usage: F<"print-memory-usage">,
   HelpText<"Report target memory usage">;
 
+defm propeller_profile_use:
+  EEq<"propeller-profile-use", "Propeller file used to reorder symorder">;
 defm relax: BB<"relax",
   "Enable target-specific relaxations if supported (default)",
   "Disable target-specific relaxations">;
