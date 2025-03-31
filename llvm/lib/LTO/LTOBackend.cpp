@@ -237,19 +237,28 @@ static void runNewPMPasses(const Config &Conf, Module &Mod, TargetMachine *TM,
   std::optional<PGOOptions> PGOOpt;
   if (!Conf.SampleProfile.empty())
     PGOOpt = PGOOptions(Conf.SampleProfile, "", Conf.ProfileRemapping,
-                        /*MemoryProfile=*/"", FS, PGOOptions::SampleUse,
+                        /*MemoryProfile=*/"", Conf.PropellerProfile, 
+                        FS, PGOOptions::SampleUse,
                         PGOOptions::NoCSAction, true);
   else if (Conf.RunCSIRInstr) {
     PGOOpt = PGOOptions("", Conf.CSIRProfile, Conf.ProfileRemapping,
-                        /*MemoryProfile=*/"", FS, PGOOptions::IRUse,
+                        /*MemoryProfile=*/"", Conf.PropellerProfile,
+                        FS, PGOOptions::IRUse,
                         PGOOptions::CSIRInstr, Conf.AddFSDiscriminator);
   } else if (!Conf.CSIRProfile.empty()) {
     PGOOpt = PGOOptions(Conf.CSIRProfile, "", Conf.ProfileRemapping,
-                        /*MemoryProfile=*/"", FS, PGOOptions::IRUse,
+                        /*MemoryProfile=*/"", Conf.PropellerProfile,
+                        FS, PGOOptions::IRUse,
                         PGOOptions::CSIRUse, Conf.AddFSDiscriminator);
     NoPGOWarnMismatch = !Conf.PGOWarnMismatch;
+  } else if (!Conf.PropellerProfile.empty()) {
+    PGOOpt = PGOOptions("", "", Conf.ProfileRemapping,
+                        /*MemoryProfile=*/"", Conf.PropellerProfile,
+                        FS, PGOOptions::NoAction,
+                        PGOOptions::NoCSAction, Conf.AddFSDiscriminator);
   } else if (Conf.AddFSDiscriminator) {
-    PGOOpt = PGOOptions("", "", "", /*MemoryProfile=*/"", nullptr,
+    PGOOpt = PGOOptions("", "", "", /*MemoryProfile=*/"", 
+                        /*PropellerProfile=*/"", nullptr,
                         PGOOptions::NoAction, PGOOptions::NoCSAction, true);
   }
   TM->setPGOOption(PGOOpt);

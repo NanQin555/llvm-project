@@ -45,6 +45,7 @@ add_llvm_component_library(LLVMCodeGen
   BranchFolding.cpp
   BranchRelaxation.cpp
   BreakFalseDeps.cpp
+  FuncHotBBHashesProfileReader.cpp
   BasicBlockSections.cpp
   BasicBlockPathCloning.cpp
   BasicBlockSectionsProfileReader.cpp
@@ -119,6 +120,7 @@ add_llvm_component_library(LLVMCodeGen
   MachineBasicBlock.cpp
   MachineBlockFrequencyInfo.cpp
   MachineBlockHashInfo.cpp
+  HotMachineBasicBlockInfoGenerator.cpp
   MachineBlockPlacement.cpp
   MachineBranchProbabilityInfo.cpp
   MachineCFGPrinter.cpp

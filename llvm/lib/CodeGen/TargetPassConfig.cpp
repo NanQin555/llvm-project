@@ -20,6 +20,7 @@
 #include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
+#include "llvm/CodeGen/FuncHotBBHashesProfileReader.h"
 #include "llvm/CodeGen/BasicBlockSectionsProfileReader.h"
 #include "llvm/CodeGen/CSEConfigBase.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
@@ -1248,6 +1249,11 @@ void TargetPassConfig::addMachinePasses() {
   if (EnableFSDiscriminator)
     addPass(createMIRAddFSDiscriminatorsPass(
         sampleprof::FSDiscriminatorPass::PassLast));
+  auto PGOOpt = TM->getPGOOption();
+  bool HavePropellerProfile = PGOOpt && !PGOOpt->PropellerProfileFile.empty();
+  if (HavePropellerProfile) {
+    addPass(llvm::createFuncHotBBHashesProfileReaderPass((*PGOOpt).PropellerProfileFile));
+  }
 
   bool NeedsBBSections =
       TM->getBBSectionsType() != llvm::BasicBlockSection::None;
@@ -1274,11 +1280,14 @@ void TargetPassConfig::addMachinePasses() {
   }
   // We run the BasicBlockSections pass if either we need BB sections or BB
   // address map (or both).
-  if (NeedsBBSections || TM->Options.BBAddrMap) {
+  if (NeedsBBSections || TM->Options.BBAddrMap || HavePropellerProfile) {
     if (TM->getBBSectionsType() == llvm::BasicBlockSection::List) {
       addPass(llvm::createBasicBlockSectionsProfileReaderPass(
           TM->getBBSectionsFuncListBuf()));
       addPass(llvm::createBasicBlockPathCloningPass());
+    }
+    if (HavePropellerProfile) {
+      addPass(llvm::createHotMachineBasicBlockInfoGeneratorPass());
     }
     addPass(llvm::createBasicBlockSectionsPass());
   }
