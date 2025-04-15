@@ -12,6 +12,8 @@ using namespace llvm;
 
 static cl::opt<bool> PropellerMatchInfer("propeller-match-infer", 
     cl::desc("Use match&infer to evaluate stale profile"), cl::init(false), cl::Optional);
+static cl::opt<float> PropellerInferThreshold("propeller-infer-threshold", 
+    cl::desc("Threshold for infer stale profile"), cl::init(0.6), cl::Optional);
 
 /// The object is used to identify and match basic blocks given their hashes.
 class StaleMatcher {
@@ -170,22 +172,29 @@ void HotMachineBasicBlockInfoGenerator::generateHotBBsforFunction(
 }
 
 bool HotMachineBasicBlockInfoGenerator::runOnMachineFunction(MachineFunction &MF) {
-    auto [FindFlag, HotMBBInfos]
-      = getAnalysis<FuncHotBBHashesProfileReader>()
-      .getHotBBInfosForFunction(MF.getName());
-    if (!FindFlag) {
-      return false;
-    }
-    BlockWeightMap MBBToFreq;
-    BlockEdgeMap Successors;
-    SmallVector<MachineBasicBlock *, 4> HotBBs;
-    matchHotBBsByHashes(MF, HotMBBInfos, MBBToFreq, Successors, HotBBs);
-    SampleProfileInference<MachineFunction> SPI(MF, Successors, MBBToFreq);
-    BlockWeightMap BlockWeights;
-    EdgeWeightMap EdgeWeights;
-    SPI.apply(BlockWeights, EdgeWeights);
-    generateHotBBsforFunction(MF, MBBToFreq, BlockWeights, EdgeWeights, HotBBs);
+  auto [FindFlag, HotMBBInfos]
+    = getAnalysis<FuncHotBBHashesProfileReader>()
+    .getHotBBInfosForFunction(MF.getName());
+  if (!FindFlag || MF.size() == 0) {
     return false;
+  }
+  BlockWeightMap MBBToFreq;
+  BlockEdgeMap Successors;
+  SmallVector<MachineBasicBlock *, 4> HotBBs;
+  matchHotBBsByHashes(MF, HotMBBInfos, MBBToFreq, Successors, HotBBs);
+
+  // If the ratio of the number of MBBs in matching to the total number of MBBs in the 
+  // function is less than the threshold value, the processing should be abandoned.
+  if (static_cast<float>(HotBBs.size()) / MF.size() < PropellerInferThreshold) {
+    return false;
+  }
+
+  SampleProfileInference<MachineFunction> SPI(MF, Successors, MBBToFreq);
+  BlockWeightMap BlockWeights;
+  EdgeWeightMap EdgeWeights;
+  SPI.apply(BlockWeights, EdgeWeights);
+  generateHotBBsforFunction(MF, MBBToFreq, BlockWeights, EdgeWeights, HotBBs);
+  return false;
 }
 
 MachineFunctionPass *llvm::createHotMachineBasicBlockInfoGeneratorPass() {
