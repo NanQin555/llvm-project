@@ -187,7 +187,9 @@ createBBClusterInfoForFunction(
     SmallVector<BBClusterInfo, 4> BBClusterInfos;
     unsigned CurrentPosition = 0;
     for (auto &MBB : HotMBBs) {
-      BBClusterInfos.push_back({*(MBB->getBBID()), CurrentCluster, CurrentPosition++});
+      if (MBB->getBBID()) {
+        BBClusterInfos.push_back({*(MBB->getBBID()), CurrentCluster, CurrentPosition++});
+      }
     }
     return std::pair(true, std::move(BBClusterInfos));
   }
