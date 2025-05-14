@@ -4,12 +4,18 @@ DISABLE_OPENMP=false
 CLEAN_BUILD=false
 ENABLE_PGO_BOLT=false
 BUILD_TYPE=Release
+BUILD_LIBCXX=false
+SKIP_TRUNK=false
 
 
 for arg in "$@"; do
   case $arg in
     --build-debug)
       BUILD_TYPE=Debug
+      shift
+      ;;
+    --libcxx-build)
+      BUILD_LIBCXX=true
       shift
       ;;
     --disable-openmp)
@@ -23,6 +29,10 @@ for arg in "$@"; do
     --enable-pgo-bolt)
       ENABLE_PGO_BOLT=true
       shift 
+      ;;
+    --skip-trunk)
+      SKIP_TRUNK=true
+      shift
       ;;
     *)
       ;;
@@ -51,10 +61,9 @@ mkdir -p ${TMP_DIR}
 export TMPDIR=${TMP_DIR}
 
 MAKER="Unix Makefiles"
+DEFAULT_MAKE_JOB=$[$(lscpu  | grep -E "^CPU\(s\):" | awk '{ print $2 }') / 2 + 1]
 # MAKER="Ninja"
-if [ ! $MAKE_JOB ]; then
-MAKE_JOB=$[$(lscpu  | grep -E "^CPU\(s\):" | awk '{ print $2 }') / 2 + 1]
-fi
+MAKE_JOB=${CUSTOM_MAKE_JOB-$DEFAULT_MAKE_JOB}
 MAKE="make"
 CMAKE="cmake3"
 
@@ -71,6 +80,9 @@ PATH_TO_OPT_INSTALL=${BASE_DIR}/optimized_intall
 
 PATH_TO_BASE_BUILD=${BASE_DIR}/base_build
 PATH_TO_BASE_INSTALL=${BASE_DIR}/base_intall
+
+PATH_TO_LIBCXX_BUILD=${BASE_DIR}/libcxx_build
+PATH_TO_LIBCXX_INSTALL=${BASE_DIR}/libcxx_intall
 
 # Symlink all binaries here
 PATH_TO_ALL_BINARIES=${BASE_DIR}/PreBuiltBinaries
@@ -97,6 +109,8 @@ fi
 
 ALL_PROJECTS="clang;lld"
 ALL_RUNTIMES="libcxx;libcxxabi;compiler-rt"
+COMPILER_RT_RUNTIMES="compiler-rt"
+LIBCXX_RUNTIMES="libcxx;libcxxabi"
 
 if [ ${DISABLE_OPENMP} != "true" ]; then
    ALL_PROJECTS="${ALL_PROJECTS};openmp"
@@ -132,7 +146,8 @@ TRUNK_CMAKE_FLAGS=(
   "-DLLVM_ENABLE_BINDINGS=OFF" # wuminghui03: llvm-go run test fail, disable it
   "-DLLVM_PARALLEL_LINK_JOBS=1"
   "-DLLVM_STATIC_LINK_CXX_STDLIB=true"
-  "-DLLVM_ENABLE_PROJECTS=clang;lld;compiler-rt"
+  "-DLLVM_ENABLE_PROJECTS=clang;lld"
+  "-DLLVM_ENABLE_RUNTIMES=libcxx;libcxxabi;compiler-rt"
   "-DCMAKE_INSTALL_PREFIX=${PATH_TO_TRUNK_LLVM_INSTALL}"
   "-DCMAKE_C_COMPILER=gcc"
   "-DCMAKE_CXX_COMPILER=g++"
@@ -140,36 +155,58 @@ TRUNK_CMAKE_FLAGS=(
   "-DLIBOMP_ENABLE_SHARED=OFF"
 )
 
+if [ "${SKIP_TRUNK}" == "false" ]; then
 # Build Trunk LLVM
-echo "=============== build trunk"
-
-mkdir -p ${PATH_TO_TRUNK_LLVM_BUILD} && cd ${PATH_TO_TRUNK_LLVM_BUILD}
-${CMAKE} -G "${MAKER}" ${TRUNK_CMAKE_FLAGS[@]} ${PATH_TO_LLVM_SOURCES}/llvm
-${MAKE} -j${MAKE_JOB} install
-
+  echo "=============== build trunk"
+  mkdir -p ${PATH_TO_TRUNK_LLVM_BUILD} && cd ${PATH_TO_TRUNK_LLVM_BUILD}
+  ${CMAKE} -G "${MAKER}" ${TRUNK_CMAKE_FLAGS[@]} ${PATH_TO_LLVM_SOURCES}/llvm
+  ${MAKE} -j${MAKE_JOB} install
+  echo "=============== build trunk end"
+else
+  cp -r ${BASE_DIR}.old/trunk_llvm_install ${BASE_DIR}/
+  cp -r ${BASE_DIR}.old/trunk_llvm_build ${BASE_DIR}/
+fi
 CLANG_VERSION=$(sed -Ene 's!^CLANG_EXECUTABLE_VERSION:STRING=(.*)$!\1!p' ${PATH_TO_TRUNK_LLVM_BUILD}/CMakeCache.txt)
-
-echo "=============== build trunk end"
 
 
 if [ "${ENABLE_PGO_BOLT}" != "true" ]; then
-  echo "=============== build base"
-  BASE_CMAKE_FLAGS=(
-    ${COMMON_CMAKE_FLAGS[@]}
-    "-DCMAKE_C_COMPILER=${PATH_TO_TRUNK_LLVM_INSTALL}/bin/clang"
-    "-DCMAKE_CXX_COMPILER=${PATH_TO_TRUNK_LLVM_INSTALL}/bin/clang++"
-    "-DLLVM_ENABLE_PROJECTS=${ALL_PROJECTS}"
-    "-DLLVM_ENABLE_RUNTIMES=${ALL_RUNTIMES}"
-    "-DLLVM_USE_LINKER=lld"
-    "-DCMAKE_INSTALL_PREFIX=${PATH_TO_BASE_INSTALL}"
-    "-DLIBCXXABI_ENABLE_SHARED=ON"
-    "-DLIBCXX_ENABLE_SHARED=ON"
-    "-DLIBOMP_ENABLE_SHARED=OFF"
-  )
-  mkdir -p ${PATH_TO_BASE_BUILD} && cd ${PATH_TO_BASE_BUILD}
-  ${CMAKE} -G "${MAKER}" "${BASE_CMAKE_FLAGS[@]}" ${PATH_TO_LLVM_SOURCES}/llvm
-  ${MAKE} -j${MAKE_JOB} install
-  echo "=============== build base end"
+  # clang和libcxx分开构建管理
+  if [ "${BUILD_LIBCXX}" == "false" ]; then 
+    echo "=============== build base clang"
+    BASE_CMAKE_FLAGS=(
+      ${COMMON_CMAKE_FLAGS[@]}
+      "-DCMAKE_C_COMPILER=${PATH_TO_TRUNK_LLVM_INSTALL}/bin/clang"
+      "-DCMAKE_CXX_COMPILER=${PATH_TO_TRUNK_LLVM_INSTALL}/bin/clang++"
+      "-DLLVM_ENABLE_PROJECTS=${ALL_PROJECTS}"
+      "-DLLVM_ENABLE_RUNTIMES=${COMPILER_RT_RUNTIMES}"
+      "-DCMAKE_INSTALL_PREFIX=${PATH_TO_BASE_INSTALL}"
+      "-DLLVM_USE_LINKER=lld"
+      "-DLIBCXXABI_ENABLE_SHARED=ON"
+      "-DLIBCXX_ENABLE_SHARED=ON"
+      "-DLIBOMP_ENABLE_SHARED=OFF"
+    )
+    mkdir -p ${PATH_TO_BASE_BUILD} && cd ${PATH_TO_BASE_BUILD}
+    ${CMAKE} -G "${MAKER}" "${BASE_CMAKE_FLAGS[@]}" ${PATH_TO_LLVM_SOURCES}/llvm
+    ${MAKE} -j${MAKE_JOB} install
+    echo "=============== build base clang end"
+  else
+    echo "=============== build libcxx"
+    LIBCXX_CMAKE_FLAGS=(
+      ${COMMON_CMAKE_FLAGS[@]}
+      "-DCMAKE_C_COMPILER=${PATH_TO_TRUNK_LLVM_INSTALL}/bin/clang"
+      "-DCMAKE_CXX_COMPILER=${PATH_TO_TRUNK_LLVM_INSTALL}/bin/clang++"
+      "-DLLVM_ENABLE_PROJECTS=clang"
+      "-DLLVM_ENABLE_RUNTIMES=${LIBCXX_RUNTIMES}"
+      "-DCMAKE_INSTALL_PREFIX=${PATH_TO_LIBCXX_INSTALL}"
+      "-DLIBCXXABI_ENABLE_SHARED=ON"
+      "-DLIBCXX_ENABLE_SHARED=ON"
+    )
+    mkdir -p ${PATH_TO_LIBCXX_BUILD} && cd ${PATH_TO_LIBCXX_BUILD}
+    ${CMAKE} -G "${MAKER}" "${LIBCXX_CMAKE_FLAGS[@]}" ${PATH_TO_LLVM_SOURCES}/llvm
+    ${MAKE} -j${MAKE_JOB} runtimes
+    ${MAKE} -j${MAKE_JOB} install-runtimes 
+    echo "=============== build libcxx end"
+  fi
   exit 0
 fi
 
