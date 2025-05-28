@@ -36,6 +36,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/BasicBlockSectionUtils.h"
 #include "llvm/CodeGen/BasicBlockSectionsProfileReader.h"
+#include "llvm/CodeGen/HotMachineBasicBlockInfoGenerator.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/Passes.h"
@@ -138,7 +139,8 @@ bool IsValidCloning(const MachineFunction &MF,
 // Applies all clonings specified in `ClonePaths` to `MF`. Returns true
 // if any clonings have been applied.
 bool ApplyCloning(MachineFunction &MF,
-                  const SmallVector<SmallVector<unsigned>> &ClonePaths) {
+                  const SmallVector<SmallVector<unsigned>> &ClonePaths,
+                  HotMachineBasicBlockInfoGenerator *HotBBGenerator = nullptr) {
   if (ClonePaths.empty())
     return false;
   bool AnyPathsCloned = false;
@@ -183,6 +185,14 @@ bool ApplyCloning(MachineFunction &MF,
       for (auto &LiveIn : OrigBB->liveins())
         CloneBB->addLiveIn(LiveIn);
 
+      if (HotBBGenerator) {
+        auto OptHotBBs = HotBBGenerator->getHotMBBs(MF.getName());
+        if (OptHotBBs) {
+          auto& HotMBBs = *OptHotBBs;
+          HotMBBs.push_back(CloneBB);
+        }
+      }
+      
       PrevBB = CloneBB;
     }
     AnyPathsCloned = true;
@@ -227,16 +237,26 @@ INITIALIZE_PASS_END(
 bool BasicBlockPathCloning::runOnMachineFunction(MachineFunction &MF) {
   assert(MF.getTarget().getBBSectionsType() == BasicBlockSection::List &&
          "BB Sections list not enabled!");
-  if (hasInstrProfHashMismatch(MF))
+  auto PGOOpt = MF.getTarget().getPGOOption();
+  bool HavePropellerProfile = PGOOpt && !PGOOpt->PropellerProfileFile.empty();
+  if (!HavePropellerProfile) {
+    if (hasInstrProfHashMismatch(MF))
+      return false;
+  
+    return ApplyCloning(MF, getAnalysis<BasicBlockSectionsProfileReader>()
+                                .getClonePathsForFunction(MF.getName()));
+  }
+  auto &HotBBGenerator = getAnalysis<HotMachineBasicBlockInfoGenerator>();
+  auto [findFlag, pathCloneInfo] = HotBBGenerator.getBBIDPathsCloningInfo(MF.getName());
+  if (!findFlag)
     return false;
-
-  return ApplyCloning(MF, getAnalysis<BasicBlockSectionsProfileReader>()
-                              .getClonePathsForFunction(MF.getName()));
-}
+  return ApplyCloning(MF, pathCloneInfo, &HotBBGenerator);
+} 
 
 void BasicBlockPathCloning::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.setPreservesAll();
   AU.addRequired<BasicBlockSectionsProfileReader>();
+  AU.addRequired<HotMachineBasicBlockInfoGenerator>();
   MachineFunctionPass::getAnalysisUsage(AU);
 }
 

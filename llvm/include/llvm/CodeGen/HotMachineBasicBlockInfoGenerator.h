@@ -22,6 +22,12 @@ public:
 
   std::optional<SmallVector<MachineBasicBlock *, 4>> getHotMBBs(StringRef FuncName) const;
 
+  std::pair<bool, SmallVector<SmallVector<MachineBasicBlock *, 4>>>
+  getMBBPathsCloningInfo(StringRef FuncName) const;
+
+  std::pair<bool, SmallVector<SmallVector<unsigned>>>
+  getBBIDPathsCloningInfo(StringRef FuncName) const;
+
 private:
   using Edge = std::pair<const MachineBasicBlock *, const MachineBasicBlock *>;
   using BlockWeightMap = DenseMap<const MachineBasicBlock *, uint64_t>;
@@ -30,7 +36,9 @@ private:
     DenseMap<const MachineBasicBlock *, SmallVector<const MachineBasicBlock *, 8>>;
 
   DenseMap<StringRef, SmallVector<MachineBasicBlock *, 4>> FuncToHotMBBs;
-    
+  DenseMap<StringRef, SmallVector<SmallVector<MachineBasicBlock *, 4>>> FuncToMBBClonePaths;
+  DenseMap<StringRef, SmallVector<SmallVector<unsigned>>> FuncToBBIDClonePaths;
+
   void matchHotBBsByHashes(
     MachineFunction &MF,
     SmallVector<HotBBInfo, 4> &HotMBBInfos,
@@ -44,6 +52,14 @@ private:
     BlockWeightMap &BlockWeights,
     EdgeWeightMap &EdgeWeights,
     SmallVector<MachineBasicBlock *, 4> &HotBBs);
+
+  void matchMBBClonePathsByHashes(
+    MachineFunction &MF,
+    SmallVector<SmallVector<uint64_t, 4>> &HashPathsCloningInfo);   
+
+  void matchBBIDClonePathsByHashes(
+    MachineFunction &MF,
+    SmallVector<SmallVector<uint64_t, 4>> &HashPathsCloningInfo);
 };
 
 } // end namespace llvm

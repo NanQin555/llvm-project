@@ -30,16 +30,20 @@ public:
     std::pair<bool, SmallVector<HotBBInfo, 4>>
     getHotBBInfosForFunction(StringRef FuncName) const;
 
+    std::pair<bool, SmallVector<SmallVector<uint64_t, 4>>>
+    getHashPathsCloningInfo(StringRef FuncName) const;
+
     // Reads the profile for matching functions.
     bool doInitialization(Module &M) override;
-
-private:
-    std::unique_ptr<MemoryBuffer> MBuf;
 
     StringRef getAliasName(StringRef FuncName) const {
         auto R = FuncAliasMap.find(FuncName);
         return R == FuncAliasMap.end() ? FuncName : R->second;
     }
+    
+private:
+    std::unique_ptr<MemoryBuffer> MBuf;
+
 
     // Reads the basic block frequency with hash profile for functions in this module.
     Error ReadProfile();
@@ -54,6 +58,12 @@ private:
     // record the frequency of basic block, 
     // the basic block is represented by its hash.
     StringMap<SmallVector<HotBBInfo, 4>> FuncToHotBBHashes;
+
+    // record the path cloning info with the hash value of the MachineBasicBlock.
+    // !!!0x111 0x222
+    // !!!0x333 0x444 0x555
+    // => {{0x111, 0x222}, {0x333, 0x444, 0x555}}
+    StringMap<SmallVector<SmallVector<uint64_t, 4>>> FuncToHashPathsCloningInfo;
 };
 
 ImmutablePass *

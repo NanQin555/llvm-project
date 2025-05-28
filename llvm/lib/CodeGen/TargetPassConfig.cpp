@@ -1288,6 +1288,7 @@ void TargetPassConfig::addMachinePasses() {
     }
     if (HavePropellerProfile) {
       addPass(llvm::createHotMachineBasicBlockInfoGeneratorPass());
+      addPass(llvm::createBasicBlockPathCloningPass());
     }
     addPass(llvm::createBasicBlockSectionsPass());
   }

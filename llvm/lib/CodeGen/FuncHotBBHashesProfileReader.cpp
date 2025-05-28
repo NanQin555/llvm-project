@@ -30,13 +30,23 @@ FuncHotBBHashesProfileReader::getHotBBInfosForFunction(StringRef FuncName) const
                 : std::pair(false, SmallVector<HotBBInfo, 4>{});
 }
 
+std::pair<bool, SmallVector<SmallVector<uint64_t, 4>>>
+FuncHotBBHashesProfileReader::getHashPathsCloningInfo(StringRef FuncName) const {
+    auto R = FuncToHashPathsCloningInfo.find(getAliasName(FuncName));
+    return R != FuncToHashPathsCloningInfo.end()
+                ? std::pair(true, R->second)
+                : std::pair(false, SmallVector<SmallVector<uint64_t, 4>>{});
+}
+
 // Reads the basic block frequency with hash profile for functions in this module.
-// The profile record the map from basic block hash to basic block frequency of
-// each function. The profile format looks like this:
+// The profile record the map from basic block hash to basic block frequency and 
+// path cloning info of each function. The profile format looks like this:
 // ---------------------------------
 // !foo
 // !!0x123 156 0
 // !!0x456 300 2
+// !!!0x111 0x222
+// !!!0x333 0x444 0x555
 Error FuncHotBBHashesProfileReader::ReadProfile() {
   ErrorOr<std::unique_ptr<MemoryBuffer>> buffer = MemoryBuffer::getFile(PropellerFilePath);
   if (!buffer) {
@@ -53,14 +63,33 @@ Error FuncHotBBHashesProfileReader::ReadProfile() {
   };
 
   auto FI = FuncToHotBBHashes.end();
+  auto PI = FuncToHashPathsCloningInfo.end();
 
   for (; !LineIt.is_at_eof(); ++LineIt) {
     StringRef S(*LineIt);
     // Check for the leading "!"
     if (!S.consume_front("!") || S.empty())
       break;
+    // Check for the situation of "!!!", handle path cloning info
+    if (S.consume_front("!!")) {
+      if (PI == FuncToHashPathsCloningInfo.end())
+        continue;
+      
+      SmallVector<uint64_t, 4> PathCloningInfo;
+      SmallVector<StringRef, 4> StrPathCloningInfo;
+      S.split(StrPathCloningInfo, ' ');
+      for (auto &Info : StrPathCloningInfo) {
+        unsigned long long Hash;
+        if (getAsUnsignedInteger(Info, 16, Hash)) {
+          return invalidProfileError(Twine("Unsigned integer expected: '") +
+                                        Info + "'.");
+        }
+        PathCloningInfo.push_back(Hash);
+      }
+      PI->second.push_back(PathCloningInfo);
+    }
     // Check for second "!" which indicates a basic block hash.
-    if (S.consume_front("!")) {
+    else if (S.consume_front("!")) {
       // Skip the profile when we the profile iterator (FI) refers to the
       // past-the-end element.
       if (FI == FuncToHotBBHashes.end())
@@ -98,12 +127,15 @@ Error FuncHotBBHashesProfileReader::ReadProfile() {
       // Prepare for parsing clusters of this function name.
       // Start a new cluster map for this function name.
       auto R = FuncToHotBBHashes.try_emplace(Aliases.front());
+      auto H = FuncToHashPathsCloningInfo.try_emplace(Aliases.front());
+
       // Report error when multiple profiles have been specified for the same
       // function.
       if (!R.second)
         return invalidProfileError("Duplicate profile for function '" +
                                    Aliases.front() + "'.");
       FI = R.first;
+      PI = H.first;
     }
   }
   return Error::success();

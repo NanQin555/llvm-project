@@ -136,6 +136,7 @@ INITIALIZE_PASS_BEGIN(
 INITIALIZE_PASS_DEPENDENCY(BasicBlockSectionsProfileReader)
 INITIALIZE_PASS_DEPENDENCY(MachineBlockHashInfo)
 INITIALIZE_PASS_DEPENDENCY(HotMachineBasicBlockInfoGenerator)
+INITIALIZE_PASS_DEPENDENCY(FuncHotBBHashesProfileReader)
 INITIALIZE_PASS_END(BasicBlockSections, "bbsections-prepare",
                     "Prepares for basic block sections, by splitting functions "
                     "into clusters of basic blocks.",

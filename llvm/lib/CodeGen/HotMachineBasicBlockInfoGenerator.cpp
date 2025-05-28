@@ -84,6 +84,24 @@ HotMachineBasicBlockInfoGenerator::getHotMBBs(StringRef FuncName) const {
   }
   return It->second;
 }
+
+std::pair<bool, SmallVector<SmallVector<MachineBasicBlock *, 4>>>
+HotMachineBasicBlockInfoGenerator::getMBBPathsCloningInfo(StringRef FuncName) const {
+  auto& ProfileReader = getAnalysis<FuncHotBBHashesProfileReader>();
+  auto R = FuncToMBBClonePaths.find(ProfileReader.getAliasName(FuncName));
+  return R != FuncToMBBClonePaths.end()
+              ? std::pair(true, R->second)
+              : std::pair(false, SmallVector<SmallVector<MachineBasicBlock *, 4>>{});
+}
+
+std::pair<bool, SmallVector<SmallVector<unsigned>>>
+HotMachineBasicBlockInfoGenerator::getBBIDPathsCloningInfo(StringRef FuncName) const {
+  auto& ProfileReader = getAnalysis<FuncHotBBHashesProfileReader>();
+  auto R = FuncToBBIDClonePaths.find(ProfileReader.getAliasName(FuncName));
+  return R != FuncToBBIDClonePaths.end()
+              ? std::pair(true, R->second)
+              : std::pair(false, SmallVector<SmallVector<unsigned>>{});
+}
     
 void HotMachineBasicBlockInfoGenerator::matchHotBBsByHashes(
     MachineFunction &MF, 
@@ -171,6 +189,45 @@ void HotMachineBasicBlockInfoGenerator::generateHotBBsforFunction(
   }
 }
 
+void HotMachineBasicBlockInfoGenerator::matchMBBClonePathsByHashes(
+    MachineFunction &MF,
+    SmallVector<SmallVector<uint64_t, 4>> &HashPathsCloningInfo) {
+  std::vector<MachineBasicBlock *> Blocks;
+  std::vector<BlendedBlockHash> Hashes;
+  auto& ProfileReader = getAnalysis<FuncHotBBHashesProfileReader>();
+  for (auto &Block : MF) {
+    Blocks.push_back(&Block);
+    Hashes.push_back(BlendedBlockHash(Block.getHash()));
+  }
+  StaleMatcher Matcher;
+  Matcher.init(Blocks, Hashes);
+  for (auto &Path : HashPathsCloningInfo) {
+    SmallVector<MachineBasicBlock *, 4> MBBClonePath;
+    for (auto &item : Path) {
+      MachineBasicBlock *Block 
+          = Matcher.matchBlock(BlendedBlockHash(item));
+      if (Block != nullptr) {
+        MBBClonePath.push_back(Block);
+      }
+    }
+    FuncToMBBClonePaths[ProfileReader.getAliasName(MF.getName())].push_back(MBBClonePath);
+  }
+}
+
+void HotMachineBasicBlockInfoGenerator::matchBBIDClonePathsByHashes(
+    MachineFunction &MF,
+    SmallVector<SmallVector<uint64_t, 4>> &HashPathsCloningInfo) {
+  matchMBBClonePathsByHashes(MF, HashPathsCloningInfo);
+  auto& ProfileReader = getAnalysis<FuncHotBBHashesProfileReader>();
+  for (auto &item : FuncToMBBClonePaths[MF.getName()]) {
+    SmallVector<unsigned> BBIDClonePath;
+    for (auto &MBB : item) {
+      BBIDClonePath.push_back(MBB->getNumber());
+    }
+    FuncToBBIDClonePaths[ProfileReader.getAliasName(MF.getName())].push_back(BBIDClonePath);
+  }
+}
+
 bool HotMachineBasicBlockInfoGenerator::runOnMachineFunction(MachineFunction &MF) {
   auto [FindFlag, HotMBBInfos]
     = getAnalysis<FuncHotBBHashesProfileReader>()
@@ -194,6 +251,14 @@ bool HotMachineBasicBlockInfoGenerator::runOnMachineFunction(MachineFunction &MF
   EdgeWeightMap EdgeWeights;
   SPI.apply(BlockWeights, EdgeWeights);
   generateHotBBsforFunction(MF, MBBToFreq, BlockWeights, EdgeWeights, HotBBs);
+
+  auto [FindFlag, HashPathsCloningInfo]
+    = getAnalysis<FuncHotBBHashesProfileReader>()
+    .getHashPathsCloningInfo(MF.getName());
+  if (!FindFlag || MF.size() == 0) {
+    return false;
+  }
+  matchBBIDClonePathsByHashes(MF, HashPathsCloningInfo);
   return false;
 }
 
