@@ -80,6 +80,7 @@ Error FuncHotBBHashesProfileReader::ReadProfile() {
       S.split(StrPathCloningInfo, ' ');
       for (auto &Info : StrPathCloningInfo) {
         unsigned long long Hash;
+        Info.consume_front("0x");
         if (getAsUnsignedInteger(Info, 16, Hash)) {
           return invalidProfileError(Twine("Unsigned integer expected: '") +
                                         Info + "'.");
