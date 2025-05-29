@@ -252,10 +252,10 @@ bool HotMachineBasicBlockInfoGenerator::runOnMachineFunction(MachineFunction &MF
   SPI.apply(BlockWeights, EdgeWeights);
   generateHotBBsforFunction(MF, MBBToFreq, BlockWeights, EdgeWeights, HotBBs);
 
-  auto [FindFlag, HashPathsCloningInfo]
+  auto [Flag, HashPathsCloningInfo]
     = getAnalysis<FuncHotBBHashesProfileReader>()
     .getHashPathsCloningInfo(MF.getName());
-  if (!FindFlag || MF.size() == 0) {
+  if (!Flag || MF.size() == 0) {
     return false;
   }
   matchBBIDClonePathsByHashes(MF, HashPathsCloningInfo);
