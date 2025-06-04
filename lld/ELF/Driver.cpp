@@ -1088,7 +1088,20 @@ static SmallVector<StringRef, 0> generateSymbolOrderingFromPropellerProfile(Memo
     if (!s.consume_front("!") || s.empty()) {
       error("invalid propeller profile at line: " + Twine(line));
     }
-    if (s.consume_front("!")) {
+    if (s.consume_front("!!")) {
+      SmallVector<StringRef, 4> StrPathCloningInfo;
+      s.split(StrPathCloningInfo, ' ');
+      for (auto Info : StrPathCloningInfo) {
+        if (Info.empty())
+          break;
+        unsigned long long Hash;
+        Info.consume_front("0x");
+        if (getAsUnsignedInteger(Info, 16, Hash)) {
+          error("invalid propeller profile at line: " + Twine(line));
+        }
+      }
+    }
+    else if (s.consume_front("!")) {
       SmallVector<StringRef, 3> HotBB;
       s.split(HotBB, ' ');
       if (HotBB.size() != 3)
