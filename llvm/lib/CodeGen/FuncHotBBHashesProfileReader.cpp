@@ -78,13 +78,17 @@ Error FuncHotBBHashesProfileReader::ReadProfile() {
       SmallVector<uint64_t, 4> PathCloningInfo;
       SmallVector<StringRef, 4> StrPathCloningInfo;
       S.split(StrPathCloningInfo, ' ');
-      for (auto &Info : StrPathCloningInfo) {
+      int index = 0;
+      for (auto Info : StrPathCloningInfo) {
+        if (Info.empty())
+          break;
         unsigned long long Hash;
         Info.consume_front("0x");
         if (getAsUnsignedInteger(Info, 16, Hash)) {
-          return invalidProfileError(Twine("Unsigned integer expected: '") +
+          return invalidProfileError(Twine("Unsigned integer StrPathCloningInfo[" + Twine(index) +  "] expected: '") +
                                         Info + "'.");
         }
+        index++;
         PathCloningInfo.push_back(Hash);
       }
       PI->second.push_back(PathCloningInfo);

@@ -144,6 +144,7 @@ bool ApplyCloning(MachineFunction &MF,
   if (ClonePaths.empty())
     return false;
   bool AnyPathsCloned = false;
+  int count = 0;
   // Map from the final BB IDs to the `MachineBasicBlock`s.
   DenseMap<unsigned, MachineBasicBlock *> BBIDToBlock;
   for (auto &BB : MF)
@@ -190,6 +191,7 @@ bool ApplyCloning(MachineFunction &MF,
         if (OptHotBBs) {
           auto& HotMBBs = *OptHotBBs;
           HotMBBs.push_back(CloneBB);
+          count++;
         }
       }
       
@@ -197,6 +199,7 @@ bool ApplyCloning(MachineFunction &MF,
     }
     AnyPathsCloned = true;
   }
+  WithColor::warning() << "Cloned " << count << " hot basic blocks in function \n";
   return AnyPathsCloned;
 }
 } // end anonymous namespace
