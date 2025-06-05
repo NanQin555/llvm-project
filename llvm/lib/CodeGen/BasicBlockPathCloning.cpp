@@ -199,7 +199,7 @@ bool ApplyCloning(MachineFunction &MF,
     }
     AnyPathsCloned = true;
   }
-  WithColor::warning() << "Cloned " << count << " hot basic blocks in function \n";
+  WithColor::note() << "Cloned " << count << " hot basic blocks in function " << MF.getName() << "\n";
   return AnyPathsCloned;
 }
 } // end anonymous namespace
