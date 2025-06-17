@@ -45,6 +45,7 @@ FuncHotBBHashesProfileReader::getHashPathsCloningInfo(StringRef FuncName) const 
 // !foo
 // !!0x123 156 0
 // !!0x456 300 2
+// !!0x234 122 0.1
 // !!!0x111 0x222
 // !!!0x333 0x444 0x555
 Error FuncHotBBHashesProfileReader::ReadProfile() {
@@ -93,7 +94,7 @@ Error FuncHotBBHashesProfileReader::ReadProfile() {
       }
       PI->second.push_back(PathCloningInfo);
     }
-    // Check for second "!" which indicates a basic block hash.
+    // Check for the situation "!!" which indicates a basic block hash.
     else if (S.consume_front("!")) {
       // Skip the profile when we the profile iterator (FI) refers to the
       // past-the-end element.
@@ -104,7 +105,7 @@ Error FuncHotBBHashesProfileReader::ReadProfile() {
       if (BBHashes.size() != 3) {
         return invalidProfileError("Unexpected elem number.");
       }
-      unsigned long long Hash, Freq;
+      unsigned long long Hash, Freq, ClonedId = 0;
       BBHashes[0].consume_front("0x");
       if (getAsUnsignedInteger(BBHashes[0], 16, Hash)) {
         return invalidProfileError(Twine("Unsigned integer expected: '") +
@@ -114,12 +115,25 @@ Error FuncHotBBHashesProfileReader::ReadProfile() {
         return invalidProfileError(Twine("Unsigned integer expected: '") +
                                       BBHashes[1] + "'.");
       }
+      
+      // Parse ClonedId from BBHashes[2]
+      StringRef ClonedIdStr = BBHashes[2];
+      size_t DotPos = ClonedIdStr.find('.');
+      if (DotPos != StringRef::npos) {
+        // Extract the decimal part after the dot
+        StringRef DecimalPart = ClonedIdStr.substr(DotPos + 1);
+        if (getAsUnsignedInteger(DecimalPart, 10, ClonedId)) {
+          return invalidProfileError(Twine("Invalid decimal part in ClonedId: '") +
+                                        DecimalPart + "'.");
+        }
+      }
+
       auto It = std::find_if(FI->second.begin(), FI->second.end(), 
           [Hash](HotBBInfo &BBInfo) { return BBInfo.BBHash == Hash; });
       if (It == FI->second.end())
-        FI->second.push_back({Hash, Freq});
+        FI->second.push_back({Hash, Freq, ClonedId});
     } else {
-      // This is a function name specifier. 
+      // Check for the situation "!" which is a function name specifier. 
       auto [AliasesStr, TotalBBSize] = S.split(' ');
       // Function aliases are separated using '/'. We use the first function
       // name for the cluster info mapping and delegate all other aliases to
@@ -158,4 +172,3 @@ ImmutablePass *
 llvm::createFuncHotBBHashesProfileReaderPass(const std::string PropellerProfile) {
   return new FuncHotBBHashesProfileReader(PropellerProfile);
 }
-

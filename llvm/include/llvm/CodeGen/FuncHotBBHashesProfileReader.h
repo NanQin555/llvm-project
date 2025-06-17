@@ -12,8 +12,8 @@ namespace llvm {
 struct HotBBInfo {
     uint64_t BBHash;
     uint64_t Freq;
+    uint64_t ClonedId = 0; // default is 0, means not cloned.
 };
-
 class FuncHotBBHashesProfileReader : public ImmutablePass {
 public:
     static char ID;
