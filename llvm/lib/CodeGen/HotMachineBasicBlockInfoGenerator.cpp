@@ -5,6 +5,7 @@
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/Transforms/Utils/CodeLayout.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/Support/WithColor.h"
 #include <unordered_set>
 #include <llvm/Support/CommandLine.h>
 
@@ -12,6 +13,8 @@ using namespace llvm;
 
 static cl::opt<bool> PropellerMatchInfer("propeller-match-infer", 
     cl::desc("Use match&infer to evaluate stale profile"), cl::init(false), cl::Optional);
+static cl::opt<bool> PathClone("propeller-path-clone",
+    cl::desc("Enable path clone for propeller"), cl::init(false), cl::Optional);
 static cl::opt<float> PropellerInferThreshold("propeller-infer-threshold", 
     cl::desc("Threshold for infer stale profile"), cl::init(0.6), cl::Optional);
 
@@ -103,6 +106,56 @@ HotMachineBasicBlockInfoGenerator::getBBIDPathsCloningInfo(StringRef FuncName) c
               : std::pair(false, SmallVector<SmallVector<unsigned>>{});
 }
     
+SmallVector<SmallVector<std::pair<MachineBasicBlock *, MachineBasicBlock *>>>&
+HotMachineBasicBlockInfoGenerator::getSuccNamesCloningInfo(StringRef FuncName) {
+  auto &ProfileReader = getAnalysis<FuncHotBBHashesProfileReader>();
+  return FuncToSuccBBIDClonePaths[ProfileReader.getAliasName(FuncName)];
+}
+
+void HotMachineBasicBlockInfoGenerator::layoutClonedMBBForFunction(MachineFunction &MF) {
+  auto &ClonePaths = getSuccNamesCloningInfo(MF.getName());
+  size_t cnt = 0;
+  for (auto &ClonePath : ClonePaths) {
+    MachineBasicBlock *Prev = nullptr;
+    for (auto &[BaseMBB, ClonedMBB] : ClonePath) {
+      // Handle the frequency of MBBs
+      if (Prev == nullptr) {
+        // The first block of path cloning info is not be cloned, it only indicates
+        // which path is being processed. So we don't need to modify the frequency of 
+        // the first block.
+        Prev = BaseMBB;
+        continue;
+      }
+      MBBToFreq[ClonedMBB] = MBBToFreq[Prev];
+      MBBToFreq[BaseMBB] = MBBToFreq[BaseMBB] > MBBToFreq[ClonedMBB] ? 
+                           MBBToFreq[BaseMBB] - MBBToFreq[ClonedMBB] : 1;
+
+      // Handle the successors of MBBs
+      for (auto &Succ : Successors[BaseMBB])
+        Successors[ClonedMBB].push_back(Succ);
+
+      auto &SuccessorList = Successors[Prev];
+      auto it = std::find(SuccessorList.begin(), SuccessorList.end(), BaseMBB);
+      assert(it != SuccessorList.end() && "BaseMBB not found in SuccessorList");
+      SuccessorList.erase(it);
+      SuccessorList.push_back(ClonedMBB);
+
+      HotBBs.push_back(ClonedMBB);
+      Prev = ClonedMBB;
+      cnt++;
+    }
+  }
+  if (cnt != 0)
+    WithColor::note() << "Cloned " << cnt << " MBB for function" << MF.getName() << "\n";
+
+  SampleProfileInference<MachineFunction> SPI(MF, Successors, MBBToFreq);
+  BlockWeightMap BlockWeights;
+  EdgeWeightMap EdgeWeights;
+  SPI.apply(BlockWeights, EdgeWeights);
+  generateHotBBsforFunction(MF, MBBToFreq, BlockWeights, EdgeWeights, HotBBs);
+  return;
+}
+
 void HotMachineBasicBlockInfoGenerator::matchHotBBsByHashes(
     MachineFunction &MF, 
     SmallVector<HotBBInfo, 4> &HotMBBInfos,
@@ -136,7 +189,7 @@ void HotMachineBasicBlockInfoGenerator::generateHotBBsforFunction(
     BlockWeightMap &BlockWeights, 
     EdgeWeightMap &EdgeWeights,
     SmallVector<MachineBasicBlock *, 4> &HotBBs) {
-  if (!PropellerMatchInfer) {
+  if (!PropellerMatchInfer && !PathClone) {
     for (auto MBB : HotBBs) {
       if (MBB->isEntryBlock() || OriBlockWeights[MBB] > 0) {
         FuncToHotMBBs[MF.getName()].push_back(MBB);
@@ -229,15 +282,15 @@ void HotMachineBasicBlockInfoGenerator::matchBBIDClonePathsByHashes(
 }
 
 bool HotMachineBasicBlockInfoGenerator::runOnMachineFunction(MachineFunction &MF) {
+  MBBToFreq.clear();
+  Successors.clear();
+  HotBBs.clear();
   auto [FindFlag, HotMBBInfos]
     = getAnalysis<FuncHotBBHashesProfileReader>()
     .getHotBBInfosForFunction(MF.getName());
   if (!FindFlag || MF.size() == 0) {
     return false;
   }
-  BlockWeightMap MBBToFreq;
-  BlockEdgeMap Successors;
-  SmallVector<MachineBasicBlock *, 4> HotBBs;
   matchHotBBsByHashes(MF, HotMBBInfos, MBBToFreq, Successors, HotBBs);
 
   // If the ratio of the number of MBBs in matching to the total number of MBBs in the 
@@ -245,12 +298,6 @@ bool HotMachineBasicBlockInfoGenerator::runOnMachineFunction(MachineFunction &MF
   if (static_cast<float>(HotBBs.size()) / MF.size() < PropellerInferThreshold) {
     return false;
   }
-
-  SampleProfileInference<MachineFunction> SPI(MF, Successors, MBBToFreq);
-  BlockWeightMap BlockWeights;
-  EdgeWeightMap EdgeWeights;
-  SPI.apply(BlockWeights, EdgeWeights);
-  generateHotBBsforFunction(MF, MBBToFreq, BlockWeights, EdgeWeights, HotBBs);
 
   auto [Flag, HashPathsCloningInfo]
     = getAnalysis<FuncHotBBHashesProfileReader>()

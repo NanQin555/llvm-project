@@ -144,9 +144,13 @@ bool ApplyCloning(MachineFunction &MF,
   if (ClonePaths.empty())
     return false;
   bool AnyPathsCloned = false;
-  int count = 0;
   // Map from the final BB IDs to the `MachineBasicBlock`s.
   DenseMap<unsigned, MachineBasicBlock *> BBIDToBlock;
+
+  auto SuccClonedPaths = [&MF, HotBBGenerator]() -> auto& {
+    return HotBBGenerator->getSuccNamesCloningInfo(MF.getName());
+  };
+
   for (auto &BB : MF)
     BBIDToBlock.try_emplace(BB.getBBID()->BaseID, &BB);
 
@@ -160,6 +164,7 @@ bool ApplyCloning(MachineFunction &MF,
         ++NClonesForBBID[BBID];
       continue;
     }
+    SmallVector<std::pair<MachineBasicBlock *, MachineBasicBlock *>> SuccClonedPath;
     MachineBasicBlock *PrevBB = nullptr;
     for (unsigned BBID : ClonePath) {
       MachineBasicBlock *OrigBB = BBIDToBlock.at(BBID);
@@ -171,6 +176,8 @@ bool ApplyCloning(MachineFunction &MF,
           TII->insertUnconditionalBranch(*OrigBB, FT,
                                          OrigBB->findBranchDebugLoc());
         }
+        if (HotBBGenerator != nullptr)
+          SuccClonedPath.emplace_back(OrigBB, (MachineBasicBlock *)nullptr);
         PrevBB = OrigBB;
         continue;
       }
@@ -186,20 +193,14 @@ bool ApplyCloning(MachineFunction &MF,
       for (auto &LiveIn : OrigBB->liveins())
         CloneBB->addLiveIn(LiveIn);
 
-      if (HotBBGenerator) {
-        auto OptHotBBs = HotBBGenerator->getHotMBBs(MF.getName());
-        if (OptHotBBs) {
-          auto& HotMBBs = *OptHotBBs;
-          HotMBBs.push_back(CloneBB);
-          count++;
-        }
-      }
-      
       PrevBB = CloneBB;
+      if (HotBBGenerator != nullptr)
+        SuccClonedPath.emplace_back(OrigBB, CloneBB);
     }
+    if (HotBBGenerator != nullptr)
+      SuccClonedPaths().emplace_back(SuccClonedPath);
     AnyPathsCloned = true;
   }
-  WithColor::note() << "Cloned " << count << " hot basic blocks in function " << MF.getName() << "\n";
   return AnyPathsCloned;
 }
 } // end anonymous namespace

@@ -28,6 +28,13 @@ public:
   std::pair<bool, SmallVector<SmallVector<unsigned>>>
   getBBIDPathsCloningInfo(StringRef FuncName) const;
 
+  SmallVector<SmallVector<std::pair<MachineBasicBlock *, MachineBasicBlock *>>>&
+  getSuccNamesCloningInfo(StringRef FuncName);
+
+  // After clone basic block, reorder MBBs to get best performence
+  // using EXTTSP algorithm.
+  void layoutClonedMBBForFunction(MachineFunction &MF);
+
 private:
   using Edge = std::pair<const MachineBasicBlock *, const MachineBasicBlock *>;
   using BlockWeightMap = DenseMap<const MachineBasicBlock *, uint64_t>;
@@ -37,7 +44,18 @@ private:
 
   DenseMap<StringRef, SmallVector<MachineBasicBlock *, 4>> FuncToHotMBBs;
   DenseMap<StringRef, SmallVector<SmallVector<MachineBasicBlock *, 4>>> FuncToMBBClonePaths;
+  // Path cloning info: item [0, 4, 2] means in path 0->4->2 needs clone basic block 4 and 2.
   DenseMap<StringRef, SmallVector<SmallVector<unsigned>>> FuncToBBIDClonePaths;
+  // Contain cloned MBB for clone paths. If path cloning info is [0, 4, 2], 
+  // the SuccBBIDClonePath will be the vector of MBBs whose id is [0, 4, 4.1, 2, 2.1].
+  // The base MBB and cloned MBB are saved here.
+  DenseMap<StringRef, SmallVector<SmallVector<
+    std::pair<MachineBasicBlock * /*Base MBB*/, 
+              MachineBasicBlock * /*Cloned MBB*/>>>> FuncToSuccBBIDClonePaths;
+
+  BlockWeightMap MBBToFreq;
+  BlockEdgeMap Successors;
+  SmallVector<MachineBasicBlock *, 4> HotBBs;
 
   void matchHotBBsByHashes(
     MachineFunction &MF,

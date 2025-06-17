@@ -177,8 +177,9 @@ updateBranches(MachineFunction &MF,
 }
 std::pair<bool, SmallVector<BBClusterInfo>> 
 createBBClusterInfoForFunction(
-    const MachineFunction &MF, 
+    MachineFunction &MF, 
     HotMachineBasicBlockInfoGenerator *HotBBGenerator) {
+  HotBBGenerator->layoutClonedMBBForFunction(MF);
   unsigned CurrentCluster = 0;
   auto OptHotBBs = HotBBGenerator->getHotMBBs(MF.getName());
   if (!OptHotBBs)
