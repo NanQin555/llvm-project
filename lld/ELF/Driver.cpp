@@ -1107,13 +1107,25 @@ static SmallVector<StringRef, 0> generateSymbolOrderingFromPropellerProfile(Memo
       if (HotBB.size() != 3)
         error("invalid propeller profile at line: " + Twine(line));
       HotBB[0].consume_front("0x");
-      unsigned long long Hash, Freq, BBID;
+      unsigned long long Hash, Freq, BBID, ClonedId;
       if (getAsUnsignedInteger(HotBB[0], 16, Hash))
         error("invalid propeller profile at line: " + Twine(line));
       if (getAsUnsignedInteger(HotBB[1], 10, Freq))
         error("invalid propeller profile at line: " + Twine(line));
-      if (getAsUnsignedInteger(HotBB[2], 10, BBID))
+
+      StringRef ClonedIdStr = HotBB[2];
+      size_t DotPos = ClonedIdStr.find('.');
+      if (DotPos != StringRef::npos) {
+        // Extract the decimal part after the dot
+        StringRef DecimalPart = ClonedIdStr.substr(DotPos + 1);
+        ClonedIdStr = ClonedIdStr.substr(0, DotPos);
+        if (getAsUnsignedInteger(DecimalPart, 10, ClonedId)) {
+          error("invalid propeller profile at line: " + Twine(line));
+        }
+      } 
+      if (getAsUnsignedInteger(ClonedIdStr, 10, BBID))
         error("invalid propeller profile at line: " + Twine(line));
+      
       if (Freq > 0 || BBID == 0) {
         for (auto hotBBInfo : hotBBInfos) {
           hotBBInfo->HotBBSize++;

@@ -44,7 +44,6 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Target/TargetMachine.h"
-
 using namespace llvm;
 
 namespace {
@@ -148,7 +147,7 @@ bool ApplyCloning(MachineFunction &MF,
   DenseMap<unsigned, MachineBasicBlock *> BBIDToBlock;
 
   auto SuccClonedPaths = [&MF, HotBBGenerator]() -> auto& {
-    return HotBBGenerator->getSuccNamesCloningInfo(MF.getName());
+    return HotBBGenerator->getSuccBBIDCloningInfo(MF.getName());
   };
 
   for (auto &BB : MF)
@@ -164,7 +163,7 @@ bool ApplyCloning(MachineFunction &MF,
         ++NClonesForBBID[BBID];
       continue;
     }
-    SmallVector<std::pair<MachineBasicBlock *, MachineBasicBlock *>> SuccClonedPath;
+    SmallVector<std::tuple<MachineBasicBlock *, MachineBasicBlock *, unsigned>> SuccClonedPath;
     MachineBasicBlock *PrevBB = nullptr;
     for (unsigned BBID : ClonePath) {
       MachineBasicBlock *OrigBB = BBIDToBlock.at(BBID);
@@ -177,7 +176,7 @@ bool ApplyCloning(MachineFunction &MF,
                                          OrigBB->findBranchDebugLoc());
         }
         if (HotBBGenerator != nullptr)
-          SuccClonedPath.emplace_back(OrigBB, (MachineBasicBlock *)nullptr);
+          SuccClonedPath.emplace_back(OrigBB, (MachineBasicBlock *)nullptr, 0);
         PrevBB = OrigBB;
         continue;
       }
@@ -193,9 +192,10 @@ bool ApplyCloning(MachineFunction &MF,
       for (auto &LiveIn : OrigBB->liveins())
         CloneBB->addLiveIn(LiveIn);
 
-      PrevBB = CloneBB;
       if (HotBBGenerator != nullptr)
-        SuccClonedPath.emplace_back(OrigBB, CloneBB);
+        SuccClonedPath.emplace_back(OrigBB, CloneBB, NClonesForBBID[BBID]);
+      
+      PrevBB = CloneBB;
     }
     if (HotBBGenerator != nullptr)
       SuccClonedPaths().emplace_back(SuccClonedPath);
