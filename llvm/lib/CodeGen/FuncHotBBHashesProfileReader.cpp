@@ -23,7 +23,7 @@ FuncHotBBHashesProfileReader::FuncHotBBHashesProfileReader() : ImmutablePass(ID)
 }
 
 std::pair<bool, SmallVector<HotBBInfo, 4>>
-FuncHotBBHashesProfileReader::getHotBBInfosForFunction(StringRef FuncName) const {
+FuncHotBBHashesProfileReader::getHotBBHashesForFunction(StringRef FuncName) const {
     auto R = FuncToHotBBHashes.find(getAliasName(FuncName));
     return R != FuncToHotBBHashes.end()
                 ? std::pair(true, R->second)
@@ -128,10 +128,10 @@ Error FuncHotBBHashesProfileReader::ReadProfile() {
         }
       }
 
-      auto It = std::find_if(FI->second.begin(), FI->second.end(), 
-          [Hash](HotBBInfo &BBInfo) { return BBInfo.BBHash == Hash; });
-      if (It == FI->second.end())
-        FI->second.push_back({Hash, Freq, ClonedId});
+      // auto It = std::find_if(FI->second.begin(), FI->second.end(), 
+      //     [Hash](HotBBInfo &BBInfo) { return BBInfo.BBHash == Hash; });
+      // if (It == FI->second.end())
+      FI->second.push_back({Hash, Freq, ClonedId});
     } else {
       // Check for the situation "!" which is a function name specifier. 
       auto [AliasesStr, TotalBBSize] = S.split(' ');

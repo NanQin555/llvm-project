@@ -8,9 +8,11 @@
 namespace llvm {
 
 struct HotMBBInfo {
-    MachineBasicBlock *MBB;
-    uint64_t Freq;
-    uint64_t ClonedId = 0; // default is 0, means not cloned.
+  MachineBasicBlock *MBB;
+  uint64_t Freq;
+  uint64_t ClonedId = 0; // default is 0, means not cloned.
+  HotMBBInfo(MachineBasicBlock *M, uint64_t F, uint64_t C = 0)
+    : MBB(M), Freq(F), ClonedId(C) {}
 };
 
 class HotMachineBasicBlockInfoGenerator : public MachineFunctionPass {
@@ -28,6 +30,8 @@ public:
 
   std::optional<SmallVector<MachineBasicBlock *, 4>> getHotMBBs(StringRef FuncName) const;
 
+  std::optional<SmallVector<HotMBBInfo, 4>> getHotMBBInfos(StringRef FuncName) const;
+
   std::pair<bool, SmallVector<SmallVector<MachineBasicBlock *, 4>>>
   getMBBPathsCloningInfo(StringRef FuncName) const;
 
@@ -39,7 +43,7 @@ public:
 
   // After clone basic block, reorder MBBs to get best performence
   // using EXTTSP algorithm.
-  void layoutClonedMBBForFunction(MachineFunction &MF);
+  bool layoutClonedMBBForFunction(MachineFunction &MF);
 
 private:
   using Edge = std::pair<const MachineBasicBlock *, const MachineBasicBlock *>;
@@ -50,6 +54,7 @@ private:
 
   DenseMap<StringRef, SmallVector<MachineBasicBlock *, 4>> FuncToHotMBBs;
   DenseMap<StringRef, SmallVector<HotMBBInfo, 4>> FuncToHotMBBInfos;
+  
   DenseMap<StringRef, SmallVector<SmallVector<MachineBasicBlock *, 4>>> FuncToMBBClonePaths;
   // Path cloning info: item [0, 4, 2] means in path 0->4->2 needs clone basic block 4 and 2.
   DenseMap<StringRef, SmallVector<SmallVector<unsigned>>> FuncToBBIDClonePaths;
@@ -61,18 +66,14 @@ private:
               MachineBasicBlock * /*Cloned MBB*/,
               unsigned /*Cloned MBB ID*/>>>> FuncToSuccBBIDClonePaths;
 
-  BlockWeightMap MBBToFreq;
-  BlockEdgeMap Successors;
-  SmallVector<std::pair<MachineBasicBlock *, unsigned /* Cloned MBB ID */>, 4> HotBBs;
-
-  void matchHotBBsByHashes(
-    MachineFunction &MF,
-    SmallVector<HotBBInfo, 4> &HotMBBInfos,
-    BlockWeightMap &MBBToFreq, 
-    BlockEdgeMap &Successors,
-    SmallVector<std::pair<MachineBasicBlock *, unsigned /* Cloned MBB ID */>, 4>  &HotBBs);
+  // void matchHotBBsByHashes(
+  //   MachineFunction &MF,
+  //   SmallVector<HotBBInfo, 4> &HotMBBInfos,
+  //   BlockWeightMap &MBBToFreq, 
+  //   BlockEdgeMap &Successors,
+  //   SmallVector<std::pair<MachineBasicBlock *, unsigned /* Cloned MBB ID */>, 4>  &HotBBs);
   
-  void matchHotBBsByHashes(
+  void matchHotMBBInfosByHashes(
     MachineFunction &MF,
     SmallVector<HotBBInfo, 4> &HotMBBInfos);
   
@@ -81,7 +82,7 @@ private:
     BlockWeightMap &OriBlockWeights,
     BlockWeightMap &BlockWeights,
     EdgeWeightMap &EdgeWeights,
-    SmallVector<std::pair<MachineBasicBlock *, unsigned /* Cloned MBB ID */>, 4>  &HotBBs);
+    SmallVector<MachineBasicBlock *, 4>  &HotBBs);
 
   void matchMBBClonePathsByHashes(
     MachineFunction &MF,

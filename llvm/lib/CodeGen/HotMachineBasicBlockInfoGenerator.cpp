@@ -79,8 +79,19 @@ void HotMachineBasicBlockInfoGenerator::getAnalysisUsage(AnalysisUsage &AU) cons
 
 std::optional<SmallVector<MachineBasicBlock *, 4>> 
 HotMachineBasicBlockInfoGenerator::getHotMBBs(StringRef FuncName) const {
-  auto It = FuncToHotMBBs.find(FuncName);
+  auto& ProfileReader = getAnalysis<FuncHotBBHashesProfileReader>();
+  auto It = FuncToHotMBBs.find(ProfileReader.getAliasName(FuncName));
   if (It == FuncToHotMBBs.end()) {
+    return std::nullopt;
+  }
+  return It->second;
+}
+
+std::optional<SmallVector<HotMBBInfo, 4>> 
+HotMachineBasicBlockInfoGenerator::getHotMBBInfos(StringRef FuncName) const {
+  auto& ProfileReader = getAnalysis<FuncHotBBHashesProfileReader>();
+  auto It = FuncToHotMBBInfos.find(ProfileReader.getAliasName(FuncName));
+  if (It == FuncToHotMBBInfos.end()) {
     return std::nullopt;
   }
   return It->second;
@@ -110,12 +121,36 @@ HotMachineBasicBlockInfoGenerator::getSuccBBIDCloningInfo(StringRef FuncName) {
   return FuncToSuccBBIDClonePaths[ProfileReader.getAliasName(FuncName)];
 }
 
-void HotMachineBasicBlockInfoGenerator::layoutClonedMBBForFunction(MachineFunction &MF) {
+void PrintHotBBInfos(MachineFunction &MF, SmallVector<HotMBBInfo, 4> &HotBBInfos) {
+  WithColor::note() << "HotBBInfos in function " << MF.getName() << ":\n";
+  WithColor::note() << "!" << MF.getName() << "\n";
+  for (auto HotBBInfo : HotBBInfos) {
+    auto OptBBID = HotBBInfo.MBB->getBBID();
+    if (!OptBBID) return;
+    auto& BBID = *OptBBID;
+    WithColor::note() << "!!" << BBID.BaseID << "." << BBID.CloneID << " " << HotBBInfo.Freq << " " << HotBBInfo.ClonedId << "\n";
+  }
+  return;
+}
+
+bool HotMachineBasicBlockInfoGenerator::layoutClonedMBBForFunction(MachineFunction &MF) {
   auto &ClonePaths = getSuccBBIDCloningInfo(MF.getName());
+  auto OptHotMBBInfos = getHotMBBInfos(MF.getName());
+  if (!OptHotMBBInfos)
+    return false;
+  auto &HotMBBInfos = *OptHotMBBInfos;
+
+  // WithColor::note() << "Before layoutClonedMBBForFunction, HotBBInfos in function " << MF.getName() << ":\n";
+  // PrintHotBBInfos(MF, HotMBBInfos);
+
   size_t cnt = 0;
   for (auto &ClonePath : ClonePaths) {
     MachineBasicBlock *Prev = nullptr;
-    for (auto &[BaseMBB, ClonedMBB, ClonedID] : ClonePath) {
+    for (auto &tuple : ClonePath) {
+      auto* BaseMBB = std::get<0>(tuple);
+      auto* ClonedMBB = std::get<1>(tuple);
+      auto  ClonedID  = std::get<2>(tuple);
+      
       // Handle the frequency of MBBs
       if (Prev == nullptr) {
         // The first block of path cloning info is not be cloned, it only indicates
@@ -124,71 +159,101 @@ void HotMachineBasicBlockInfoGenerator::layoutClonedMBBForFunction(MachineFuncti
         Prev = BaseMBB;
         continue;
       }
-      MBBToFreq[ClonedMBB] = MBBToFreq[Prev];
-      MBBToFreq[BaseMBB] = MBBToFreq[BaseMBB] > MBBToFreq[ClonedMBB] ? 
-                           MBBToFreq[BaseMBB] - MBBToFreq[ClonedMBB] : 1;
-
-      // Handle the successors of MBBs
-      for (auto &Succ : Successors[BaseMBB])
-        Successors[ClonedMBB].push_back(Succ);
-
-      auto &SuccessorList = Successors[Prev];
-      // auto it = std::find(SuccessorList.begin(), SuccessorList.end(), BaseMBB);
-      // assert(it != SuccessorList.end() && "BaseMBB not found in SuccessorList");
-      // SuccessorList.erase(it);
-      SuccessorList.push_back(ClonedMBB);
-
-      // Handle HotBBs
+      // Handle HotMBBInfos
       // We handle MBB those who have been cloned successfully, the ClonedID must greater than 0.
       assert(ClonedID > 0 && "ClonedID should be greater than 0");
-      auto MBBit = std::find_if(HotBBs.begin(), HotBBs.end(), [&](auto &E){
-        return E.first == BaseMBB && E.second == ClonedID;
+      auto MBBit = std::find_if(HotMBBInfos.begin(), HotMBBInfos.end(), [&](auto &E){
+        return E.MBB == BaseMBB && E.ClonedId == ClonedID;
       });
-      if (MBBit != HotBBs.end())
-        MBBit->first = ClonedMBB;
+      if (MBBit != HotMBBInfos.end())
+        MBBit->MBB = ClonedMBB;
       
       Prev = ClonedMBB;
       cnt++;
     }
   }
-  // Remove Hot BBs that not exist.
+  if (cnt != 0)
+    WithColor::note() << "Cloned " << cnt << " MBB for function" << MF.getName() << "\n";
+
+  // Remove Hot BBs that not cloned actually.
   std::vector<MachineBasicBlock *> BaseMBBs;
   for (auto &ClonePath : ClonePaths) {
+    MachineBasicBlock *Prev = nullptr;
     for (auto &[BaseMBB, ClonedMBB, ClonedID] : ClonePath) {
+      if (Prev == nullptr) {
+        Prev = BaseMBB;
+        continue;
+      }
       BaseMBBs.push_back(BaseMBB);
     }
   }
-  HotBBs.erase(std::remove_if(HotBBs.begin(), HotBBs.end(), 
+  HotMBBInfos.erase(std::remove_if(HotMBBInfos.begin(), HotMBBInfos.end(), 
     [&](auto &E){
-      return E.second > 0 && std::find(BaseMBBs.begin(), BaseMBBs.end(), E.first) != BaseMBBs.end();
+      return E.ClonedId > 0 && std::find(BaseMBBs.begin(), BaseMBBs.end(), E.MBB) != BaseMBBs.end();
     }), 
-  HotBBs.end());
+  HotMBBInfos.end());
 
-  if (cnt != 0)
-    WithColor::note() << "Cloned " << cnt << " MBB for function" << MF.getName() << "\n";
+  // WithColor::note() << "After removing uncloned MBBs, HotMBBInfos in function " << MF.getName() << ":\n";
+  // PrintHotBBInfos(MF, HotMBBInfos);
+
+  BlockWeightMap MBBToFreq;
+  BlockEdgeMap Successors;
+  SmallVector<MachineBasicBlock *, 4> HotBBs;
+  for (auto item : HotMBBInfos) {
+    MBBToFreq[item.MBB] = item.Freq;
+    HotBBs.push_back(item.MBB);
+  }
+  for (auto &Block : MF) {
+    for (auto *Succ : Block.successors()) {
+      Successors[&Block].push_back(Succ);
+    }
+  }
 
   SampleProfileInference<MachineFunction> SPI(MF, Successors, MBBToFreq);
   BlockWeightMap BlockWeights;
   EdgeWeightMap EdgeWeights;
   SPI.apply(BlockWeights, EdgeWeights);
   generateHotBBsforFunction(MF, MBBToFreq, BlockWeights, EdgeWeights, HotBBs);
-  return;
+  return true;
 }
 
-void HotMachineBasicBlockInfoGenerator::matchHotBBsByHashes(
+// void HotMachineBasicBlockInfoGenerator::matchHotBBsByHashes(
+//     MachineFunction &MF, 
+//     SmallVector<HotBBInfo, 4> &HotMBBInfos,
+//     BlockWeightMap &MBBToFreq, 
+//     BlockEdgeMap &Successors,
+//     SmallVector<std::pair<MachineBasicBlock *, unsigned /* Cloned MBB ID */>, 4>  &HotBBs) {
+//   std::vector<MachineBasicBlock *> Blocks;
+//   std::vector<BlendedBlockHash> Hashes;
+//   for (auto &Block : MF) {
+//     Blocks.push_back(&Block);
+//     Hashes.push_back(BlendedBlockHash(Block.getHash()));
+//     for (auto *Succ : Block.successors()) {
+//       Successors[&Block].push_back(Succ);
+//     }
+//   }
+//   StaleMatcher Matcher;
+//   Matcher.init(Blocks, Hashes);
+//   for (auto &item : HotMBBInfos) {
+//     MachineBasicBlock *Block 
+//         = Matcher.matchBlock(BlendedBlockHash(item.BBHash));
+//     if (Block != nullptr) {
+//       HotBBs.emplace_back(Block, item.ClonedId);
+//       if (item.ClonedId == 0)
+//         MBBToFreq[Block] = item.Freq;
+//     }
+//   }
+// }
+
+void HotMachineBasicBlockInfoGenerator::matchHotMBBInfosByHashes(
     MachineFunction &MF, 
-    SmallVector<HotBBInfo, 4> &HotMBBInfos,
-    BlockWeightMap &MBBToFreq, 
-    BlockEdgeMap &Successors,
-    SmallVector<std::pair<MachineBasicBlock *, unsigned /* Cloned MBB ID */>, 4>  &HotBBs) {
+    SmallVector<HotBBInfo, 4> &HotMBBInfos) {
+  auto& Reader = getAnalysis<FuncHotBBHashesProfileReader>();
   std::vector<MachineBasicBlock *> Blocks;
   std::vector<BlendedBlockHash> Hashes;
   for (auto &Block : MF) {
     Blocks.push_back(&Block);
     Hashes.push_back(BlendedBlockHash(Block.getHash()));
-    for (auto *Succ : Block.successors()) {
-      Successors[&Block].push_back(Succ);
-    }
   }
   StaleMatcher Matcher;
   Matcher.init(Blocks, Hashes);
@@ -196,17 +261,9 @@ void HotMachineBasicBlockInfoGenerator::matchHotBBsByHashes(
     MachineBasicBlock *Block 
         = Matcher.matchBlock(BlendedBlockHash(item.BBHash));
     if (Block != nullptr) {
-      HotBBs.emplace_back(Block, item.ClonedId);
-      if (item.ClonedId == 0)
-        MBBToFreq[Block] = item.Freq;
+      FuncToHotMBBInfos[Reader.getAliasName(MF.getName())].emplace_back(Block, item.Freq, item.ClonedId);
     }
   }
-}
-
-void HotMachineBasicBlockInfoGenerator::matchHotBBsByHashes(
-    MachineFunction &MF, 
-    SmallVector<HotBBInfo, 4> &HotMBBInfos) {
-  
 }
 
 void HotMachineBasicBlockInfoGenerator::generateHotBBsforFunction(
@@ -214,11 +271,15 @@ void HotMachineBasicBlockInfoGenerator::generateHotBBsforFunction(
     BlockWeightMap &OriBlockWeights,
     BlockWeightMap &BlockWeights, 
     EdgeWeightMap &EdgeWeights,
-    SmallVector<std::pair<MachineBasicBlock *, unsigned /* Cloned MBB ID */>, 4>  &HotBBs) {
+    SmallVector<MachineBasicBlock *, 4>  &HotBBs) {
+  auto& Reader = getAnalysis<FuncHotBBHashesProfileReader>();
+  auto AliasName = [&Reader, &MF]() {
+    return Reader.getAliasName(MF.getName());
+  };
   if (!PropellerMatchInfer) {
-    for (auto &[MBB, id] : HotBBs) {
+    for (auto &MBB : HotBBs) {
       if (MBB->isEntryBlock() || OriBlockWeights[MBB] > 0) {
-        FuncToHotMBBs[MF.getName()].push_back(MBB);
+        FuncToHotMBBs[AliasName()].push_back(MBB);
       }
     }
     return;
@@ -232,7 +293,7 @@ void HotMachineBasicBlockInfoGenerator::generateHotBBsforFunction(
   if (MF.size() <= 2) {
     for (auto &MBB : MF) {
       if (MBB.isEntryBlock() || BlockWeights[&MBB] > 0) {
-        FuncToHotMBBs[MF.getName()].push_back(&MBB);
+        FuncToHotMBBs[AliasName()].push_back(&MBB);
       }
     }
     return;
@@ -264,7 +325,7 @@ void HotMachineBasicBlockInfoGenerator::generateHotBBsforFunction(
   for (uint64_t R : Result) {
     auto Block = OrigOrder[R];
     if (Block->isEntryBlock() || BlockWeights[Block] > 0)
-      FuncToHotMBBs[MF.getName()].push_back(Block);
+      FuncToHotMBBs[AliasName()].push_back(Block);
   }
 }
 
@@ -308,21 +369,21 @@ void HotMachineBasicBlockInfoGenerator::matchBBIDClonePathsByHashes(
 }
 
 bool HotMachineBasicBlockInfoGenerator::runOnMachineFunction(MachineFunction &MF) {
-  MBBToFreq.clear();
-  Successors.clear();
-  HotBBs.clear();
-  auto [FindFlag, HotMBBInfos]
+  auto [FindFlag, HotMBBHashInfos]
     = getAnalysis<FuncHotBBHashesProfileReader>()
-    .getHotBBInfosForFunction(MF.getName());
+    .getHotBBHashesForFunction(MF.getName());
   if (!FindFlag || MF.size() == 0) {
     return false;
   }
-
-  matchHotBBsByHashes(MF, HotMBBInfos, MBBToFreq, Successors, HotBBs);
+  matchHotMBBInfosByHashes(MF, HotMBBHashInfos);
 
   // If the ratio of the number of MBBs in matching to the total number of MBBs in the 
   // function is less than the threshold value, the processing should be abandoned.
-  if (static_cast<float>(HotBBs.size()) / MF.size() < PropellerInferThreshold) {
+  auto OptHotMBBs = this->getHotMBBInfos(MF.getName());
+  if (!OptHotMBBs) 
+    return false;
+  auto& HotMBBs = *OptHotMBBs;
+  if (static_cast<float>(HotMBBs.size()) / MF.size() < PropellerInferThreshold) {
     return false;
   }
 

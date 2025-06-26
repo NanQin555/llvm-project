@@ -29,7 +29,7 @@ public:
 
     // return a vector of hit BB hashes for a function.
     std::pair<bool, SmallVector<HotBBInfo, 4>>
-    getHotBBInfosForFunction(StringRef FuncName) const;
+    getHotBBHashesForFunction(StringRef FuncName) const;
 
     std::pair<bool, SmallVector<SmallVector<uint64_t, 4>>>
     getHashPathsCloningInfo(StringRef FuncName) const;

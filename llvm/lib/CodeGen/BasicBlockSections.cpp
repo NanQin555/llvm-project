@@ -80,6 +80,7 @@
 #include "llvm/CodeGen/HotMachineBasicBlockInfoGenerator.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/Support/WithColor.h"
 #include <optional>
 
 using namespace llvm;
@@ -179,7 +180,9 @@ std::pair<bool, SmallVector<BBClusterInfo>>
 createBBClusterInfoForFunction(
     MachineFunction &MF, 
     HotMachineBasicBlockInfoGenerator *HotBBGenerator) {
-  HotBBGenerator->layoutClonedMBBForFunction(MF);
+  if (!HotBBGenerator->layoutClonedMBBForFunction(MF)) {
+    return std::pair(false, SmallVector<BBClusterInfo>{});
+  }
   unsigned CurrentCluster = 0;
   auto OptHotBBs = HotBBGenerator->getHotMBBs(MF.getName());
   if (!OptHotBBs)
