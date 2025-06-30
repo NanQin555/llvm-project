@@ -4,7 +4,7 @@
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/Transforms/Utils/SampleProfileInference.h"
 #include "llvm/CodeGen/FuncHotBBHashesProfileReader.h"
-
+#include <tuple>
 namespace llvm {
 
 struct HotMBBInfo {
@@ -39,11 +39,24 @@ public:
   getBBIDPathsCloningInfo(StringRef FuncName) const;
 
   SmallVector<SmallVector<std::tuple<MachineBasicBlock *, MachineBasicBlock *, unsigned>>>&
-  getSuccBBIDCloningInfo(StringRef FuncName);
+  getSuccCloningInfo(StringRef FuncName);
+
+  /** Handle items in FuncToHotMBBInfos. Two main action:
+   *  1. Replace origin MBB to cloned MBB for those items 
+   *  whose cloned ID is not 0 and cloned successfully.
+   *  origin MBB, 12, 3.1 -> cloned MBB, 12, 3.1
+   *  2. Remove items that not cloned actually.
+   */ 
+  void handleHotMBBInfos(MachineFunction &MF, SmallVector<HotMBBInfo, 4> &HotMBBInfos);
 
   // After clone basic block, reorder MBBs to get best performence
   // using EXTTSP algorithm.
-  bool layoutClonedMBBForFunction(MachineFunction &MF);
+  bool layoutMBBsForFunction(MachineFunction &ME);
+
+  void addToSuccClonePaths(MachineFunction &MF, SmallVector<
+    std::tuple<MachineBasicBlock * /*Base MBB*/, 
+              MachineBasicBlock * /*Cloned MBB*/,
+              unsigned /*Cloned MBB ID*/>> &SuccClonePath);
 
 private:
   using Edge = std::pair<const MachineBasicBlock *, const MachineBasicBlock *>;
@@ -52,26 +65,23 @@ private:
   using BlockEdgeMap =
     DenseMap<const MachineBasicBlock *, SmallVector<const MachineBasicBlock *, 8>>;
 
+  FuncHotBBHashesProfileReader *ProfileReader = nullptr;
+  
   DenseMap<StringRef, SmallVector<MachineBasicBlock *, 4>> FuncToHotMBBs;
   DenseMap<StringRef, SmallVector<HotMBBInfo, 4>> FuncToHotMBBInfos;
   
   DenseMap<StringRef, SmallVector<SmallVector<MachineBasicBlock *, 4>>> FuncToMBBClonePaths;
+
   // Path cloning info: item [0, 4, 2] means in path 0->4->2 needs clone basic block 4 and 2.
   DenseMap<StringRef, SmallVector<SmallVector<unsigned>>> FuncToBBIDClonePaths;
+
   // Contain cloned MBB for clone paths. If path cloning info is [0, 4, 2], 
   // the SuccBBIDClonePath will be the vector of MBBs whose id is [0, 4, 4.1, 2, 2.1].
   // The base MBB and cloned MBB are saved here.
   DenseMap<StringRef, SmallVector<SmallVector<
     std::tuple<MachineBasicBlock * /*Base MBB*/, 
               MachineBasicBlock * /*Cloned MBB*/,
-              unsigned /*Cloned MBB ID*/>>>> FuncToSuccBBIDClonePaths;
-
-  // void matchHotBBsByHashes(
-  //   MachineFunction &MF,
-  //   SmallVector<HotBBInfo, 4> &HotMBBInfos,
-  //   BlockWeightMap &MBBToFreq, 
-  //   BlockEdgeMap &Successors,
-  //   SmallVector<std::pair<MachineBasicBlock *, unsigned /* Cloned MBB ID */>, 4>  &HotBBs);
+              unsigned /*Cloned MBB ID*/>>>> FuncToSuccClonePaths;
   
   void matchHotMBBInfosByHashes(
     MachineFunction &MF,
