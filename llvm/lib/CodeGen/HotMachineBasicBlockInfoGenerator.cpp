@@ -140,61 +140,57 @@ bool HotMachineBasicBlockInfoGenerator::layoutClonedMBBForFunction(MachineFuncti
     return false;
   auto &HotMBBInfos = *OptHotMBBInfos;
 
-  // WithColor::note() << "Before layoutClonedMBBForFunction, HotBBInfos in function " << MF.getName() << ":\n";
-  // PrintHotBBInfos(MF, HotMBBInfos);
-
-  size_t cnt = 0;
-  for (auto &ClonePath : ClonePaths) {
-    MachineBasicBlock *Prev = nullptr;
-    for (auto &tuple : ClonePath) {
-      auto* BaseMBB = std::get<0>(tuple);
-      auto* ClonedMBB = std::get<1>(tuple);
-      auto  ClonedID  = std::get<2>(tuple);
-      
-      // Handle the frequency of MBBs
-      if (Prev == nullptr) {
-        // The first block of path cloning info is not be cloned, it only indicates
-        // which path is being processed. So we don't need to modify the frequency of 
-        // the first block.
-        Prev = BaseMBB;
-        continue;
+  if (PathClone) {
+    size_t cnt = 0;
+    for (auto &ClonePath : ClonePaths) {
+      MachineBasicBlock *Prev = nullptr;
+      for (auto &tuple : ClonePath) {
+        auto* BaseMBB = std::get<0>(tuple);
+        auto* ClonedMBB = std::get<1>(tuple);
+        auto  ClonedID  = std::get<2>(tuple);
+        
+        // Handle the frequency of MBBs
+        if (Prev == nullptr) {
+          // The first block of path cloning info is not be cloned, it only indicates
+          // which path is being processed. So we don't need to modify the frequency of 
+          // the first block.
+          Prev = BaseMBB;
+          continue;
+        }
+        // Handle HotMBBInfos
+        // We handle MBB those who have been cloned successfully, the ClonedID must greater than 0.
+        assert(ClonedID > 0 && "ClonedID should be greater than 0");
+        auto MBBit = std::find_if(HotMBBInfos.begin(), HotMBBInfos.end(), [&](auto &E){
+          return E.MBB == BaseMBB && E.ClonedId == ClonedID;
+        });
+        if (MBBit != HotMBBInfos.end())
+          MBBit->MBB = ClonedMBB;
+        
+        Prev = ClonedMBB;
+        cnt++;
       }
-      // Handle HotMBBInfos
-      // We handle MBB those who have been cloned successfully, the ClonedID must greater than 0.
-      assert(ClonedID > 0 && "ClonedID should be greater than 0");
-      auto MBBit = std::find_if(HotMBBInfos.begin(), HotMBBInfos.end(), [&](auto &E){
-        return E.MBB == BaseMBB && E.ClonedId == ClonedID;
-      });
-      if (MBBit != HotMBBInfos.end())
-        MBBit->MBB = ClonedMBB;
-      
-      Prev = ClonedMBB;
-      cnt++;
     }
-  }
-  if (cnt != 0)
-    WithColor::note() << "Cloned " << cnt << " MBB for function" << MF.getName() << "\n";
+    if (cnt != 0)
+      WithColor::note() << "Cloned " << cnt << " MBB for function" << MF.getName() << "\n";
 
-  // Remove Hot BBs that not cloned actually.
-  std::vector<MachineBasicBlock *> BaseMBBs;
-  for (auto &ClonePath : ClonePaths) {
-    MachineBasicBlock *Prev = nullptr;
-    for (auto &[BaseMBB, ClonedMBB, ClonedID] : ClonePath) {
-      if (Prev == nullptr) {
-        Prev = BaseMBB;
-        continue;
+    // Remove Hot BBs that not cloned actually.
+    std::vector<MachineBasicBlock *> BaseMBBs;
+    for (auto &ClonePath : ClonePaths) {
+      MachineBasicBlock *Prev = nullptr;
+      for (auto &[BaseMBB, ClonedMBB, ClonedID] : ClonePath) {
+        if (Prev == nullptr) {
+          Prev = BaseMBB;
+          continue;
+        }
+        BaseMBBs.push_back(BaseMBB);
       }
-      BaseMBBs.push_back(BaseMBB);
     }
+    HotMBBInfos.erase(std::remove_if(HotMBBInfos.begin(), HotMBBInfos.end(), 
+      [&](auto &E){
+        return E.ClonedId > 0 && std::find(BaseMBBs.begin(), BaseMBBs.end(), E.MBB) != BaseMBBs.end();
+      }), 
+    HotMBBInfos.end());
   }
-  HotMBBInfos.erase(std::remove_if(HotMBBInfos.begin(), HotMBBInfos.end(), 
-    [&](auto &E){
-      return E.ClonedId > 0 && std::find(BaseMBBs.begin(), BaseMBBs.end(), E.MBB) != BaseMBBs.end();
-    }), 
-  HotMBBInfos.end());
-
-  // WithColor::note() << "After removing uncloned MBBs, HotMBBInfos in function " << MF.getName() << ":\n";
-  // PrintHotBBInfos(MF, HotMBBInfos);
 
   BlockWeightMap MBBToFreq;
   BlockEdgeMap Successors;
@@ -217,33 +213,6 @@ bool HotMachineBasicBlockInfoGenerator::layoutClonedMBBForFunction(MachineFuncti
   return true;
 }
 
-// void HotMachineBasicBlockInfoGenerator::matchHotBBsByHashes(
-//     MachineFunction &MF, 
-//     SmallVector<HotBBInfo, 4> &HotMBBInfos,
-//     BlockWeightMap &MBBToFreq, 
-//     BlockEdgeMap &Successors,
-//     SmallVector<std::pair<MachineBasicBlock *, unsigned /* Cloned MBB ID */>, 4>  &HotBBs) {
-//   std::vector<MachineBasicBlock *> Blocks;
-//   std::vector<BlendedBlockHash> Hashes;
-//   for (auto &Block : MF) {
-//     Blocks.push_back(&Block);
-//     Hashes.push_back(BlendedBlockHash(Block.getHash()));
-//     for (auto *Succ : Block.successors()) {
-//       Successors[&Block].push_back(Succ);
-//     }
-//   }
-//   StaleMatcher Matcher;
-//   Matcher.init(Blocks, Hashes);
-//   for (auto &item : HotMBBInfos) {
-//     MachineBasicBlock *Block 
-//         = Matcher.matchBlock(BlendedBlockHash(item.BBHash));
-//     if (Block != nullptr) {
-//       HotBBs.emplace_back(Block, item.ClonedId);
-//       if (item.ClonedId == 0)
-//         MBBToFreq[Block] = item.Freq;
-//     }
-//   }
-// }
 
 void HotMachineBasicBlockInfoGenerator::matchHotMBBInfosByHashes(
     MachineFunction &MF, 
@@ -387,6 +356,8 @@ bool HotMachineBasicBlockInfoGenerator::runOnMachineFunction(MachineFunction &MF
     return false;
   }
 
+  if (!PathClone) 
+    return false;
   auto [Flag, HashPathsCloningInfo]
     = getAnalysis<FuncHotBBHashesProfileReader>()
     .getHashPathsCloningInfo(MF.getName());

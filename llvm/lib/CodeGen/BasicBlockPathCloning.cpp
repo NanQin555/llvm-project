@@ -250,11 +250,14 @@ bool BasicBlockPathCloning::runOnMachineFunction(MachineFunction &MF) {
     return ApplyCloning(MF, getAnalysis<BasicBlockSectionsProfileReader>()
                                 .getClonePathsForFunction(MF.getName()));
   }
-  auto &HotBBGenerator = getAnalysis<HotMachineBasicBlockInfoGenerator>();
-  auto [findFlag, pathCloneInfo] = HotBBGenerator.getBBIDPathsCloningInfo(MF.getName());
-  if (!findFlag)
-    return false;
-  return ApplyCloning(MF, pathCloneInfo, &HotBBGenerator);
+  if (PathClone) {
+    auto &HotBBGenerator = getAnalysis<HotMachineBasicBlockInfoGenerator>();
+    auto [findFlag, pathCloneInfo] = HotBBGenerator.getBBIDPathsCloningInfo(MF.getName());
+    if (!findFlag)
+      return false;
+    return ApplyCloning(MF, pathCloneInfo, &HotBBGenerator);
+  }
+  return false;
 } 
 
 void BasicBlockPathCloning::getAnalysisUsage(AnalysisUsage &AU) const {

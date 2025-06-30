@@ -4,6 +4,14 @@
 #include "llvm/Support/LineIterator.h"
 #include <fstream>
 
+namespace llvm {
+  cl::opt<bool> PathClone(
+    "path-clone", 
+    cl::desc("Clone MBB to increate the ratio of Fall-Through branch"), 
+    cl::init(true), 
+    cl::Optional);
+} // namespace llvm
+
 using namespace llvm;
 
 char FuncHotBBHashesProfileReader::ID = 0;
@@ -73,7 +81,7 @@ Error FuncHotBBHashesProfileReader::ReadProfile() {
       break;
     // Check for the situation of "!!!", handle path cloning info
     if (S.consume_front("!!")) {
-      if (PI == FuncToHashPathsCloningInfo.end())
+      if (!PathClone || PI == FuncToHashPathsCloningInfo.end())
         continue;
       
       SmallVector<uint64_t, 4> PathCloningInfo;

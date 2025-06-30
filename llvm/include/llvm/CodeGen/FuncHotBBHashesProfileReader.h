@@ -7,8 +7,10 @@
 #include "llvm/InitializePasses.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/MemoryBuffer.h"
-
+#include <llvm/Support/CommandLine.h>
 namespace llvm {
+
+extern cl::opt<bool> PathClone;
 
 struct HotBBInfo {
     uint64_t BBHash;
