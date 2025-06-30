@@ -1102,6 +1102,9 @@ static SmallVector<StringRef, 0> generateSymbolOrderingFromPropellerProfile(Memo
       }
     }
     else if (s.consume_front("!")) {
+      // line start with "!!": 
+      // !!0x12345678 12 3.1
+      // !!0x56789012 11 3
       SmallVector<StringRef, 3> HotBB;
       s.split(HotBB, ' ');
       if (HotBB.size() != 3)
@@ -1114,16 +1117,17 @@ static SmallVector<StringRef, 0> generateSymbolOrderingFromPropellerProfile(Memo
         error("invalid propeller profile at line: " + Twine(line));
 
       StringRef ClonedIdStr = HotBB[2];
+      StringRef IntergerPart = ClonedIdStr;
       size_t DotPos = ClonedIdStr.find('.');
       if (DotPos != StringRef::npos) {
         // Extract the decimal part after the dot
         StringRef DecimalPart = ClonedIdStr.substr(DotPos + 1);
-        ClonedIdStr = ClonedIdStr.substr(0, DotPos);
+        IntergerPart = ClonedIdStr.substr(0, DotPos);
         if (getAsUnsignedInteger(DecimalPart, 10, ClonedId)) {
           error("invalid propeller profile at line: " + Twine(line));
         }
       } 
-      if (getAsUnsignedInteger(ClonedIdStr, 10, BBID))
+      if (getAsUnsignedInteger(IntergerPart, 10, BBID))
         error("invalid propeller profile at line: " + Twine(line));
       
       if (Freq > 0 || BBID == 0) {

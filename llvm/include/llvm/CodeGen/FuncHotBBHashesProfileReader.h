@@ -1,7 +1,6 @@
 #ifndef LLVM_CODEGEN_FuncHotBBHashesProfileReader_H
 #define LLVM_CODEGEN_FuncHotBBHashesProfileReader_H
 
-#include <tuple>
 #include "llvm/ADT/SmallString.h"
 #include "llvm/IR/Module.h"
 #include "llvm/InitializePasses.h"

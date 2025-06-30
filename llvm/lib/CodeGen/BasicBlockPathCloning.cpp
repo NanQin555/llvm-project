@@ -146,10 +146,6 @@ bool ApplyCloning(MachineFunction &MF,
   // Map from the final BB IDs to the `MachineBasicBlock`s.
   DenseMap<unsigned, MachineBasicBlock *> BBIDToBlock;
 
-  auto SuccClonedPaths = [&MF, HotBBGenerator]() -> auto& {
-    return HotBBGenerator->getSuccBBIDCloningInfo(MF.getName());
-  };
-
   for (auto &BB : MF)
     BBIDToBlock.try_emplace(BB.getBBID()->BaseID, &BB);
 
@@ -198,7 +194,7 @@ bool ApplyCloning(MachineFunction &MF,
       PrevBB = CloneBB;
     }
     if (HotBBGenerator != nullptr)
-      SuccClonedPaths().emplace_back(SuccClonedPath);
+      HotBBGenerator->addToSuccClonePaths(MF, SuccClonedPath);
     AnyPathsCloned = true;
   }
   return AnyPathsCloned;
