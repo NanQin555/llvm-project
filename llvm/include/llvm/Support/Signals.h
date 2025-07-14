@@ -15,6 +15,8 @@
 #define LLVM_SUPPORT_SIGNALS_H
 
 #include <string>
+#include <cstdint>
+#include <signal.h>
 
 namespace llvm {
 class StringRef;
