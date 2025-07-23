@@ -46,6 +46,7 @@
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Instrumentation/BoundsChecking.h"
+#include "llvm/Transforms/Instrumentation/IndirectCallAnalysis.h"
 #include "llvm/Transforms/ObjCARC.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/GVN.h"
@@ -70,6 +71,7 @@ namespace {
       if (std::getenv("bar") != (char*) -1)
         return;
 
+      (void) llvm::createIndirectCallAnalysisPass();
       (void) llvm::createAAEvalPass();
       (void) llvm::createAggressiveDCEPass();
       (void) llvm::createAggressiveInstCombinerPass();

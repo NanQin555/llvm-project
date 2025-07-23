@@ -39,6 +39,7 @@
 #include "llvm/Transforms/IPO/InferFunctionAttrs.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Instrumentation.h"
+// #include "llvm/Transforms/Instrumentation/IndirectCallAnalysis.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/Transforms/Scalar/InstSimplifyPass.h"
@@ -187,6 +188,13 @@ cl::opt<AttributorRunOption> AttributorRun(
                           "enable call graph SCC attributor runs"),
                clEnumValN(AttributorRunOption::NONE, "none",
                           "disable attributor runs")));
+
+// cl::opt<bool> EnableIndirectCallAnalysis(
+//     "indirect-call-analysis",
+//     cl::Hidden,
+//     cl::desc("Enable Indirect Call Analysis Pass"),
+//     cl::init(false)
+// );
 
 extern cl::opt<bool> EnableKnowledgeRetention;
 } // namespace llvm
@@ -1005,6 +1013,10 @@ void PassManagerBuilder::populateModulePassManager(
   }
 
   MPM.add(createAnnotationRemarksLegacyPass());
+
+  // if (EnableIndirectCallAnalysis) {
+  //   MPM.add(createIndirectCallAnalysisPass());
+  // }
 }
 
 void PassManagerBuilder::addLTOOptimizationPasses(legacy::PassManagerBase &PM) {
