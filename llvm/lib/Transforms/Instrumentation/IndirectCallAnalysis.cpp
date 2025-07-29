@@ -19,28 +19,6 @@ cl::opt<bool> EnableIndirectCallAnalysis(
     cl::desc("Enable Indirect Call Analysis Pass"),
     cl::init(false)
 );
-// void log_call(void* caller, void* callee) {
-//     std::cout << "LOG" << std::endl;
-//     std::ofstream outFile("IndirectCall.log.txt", std::ios::app);
-//     std::streambuf *coutbuf = std::cout.rdbuf();
-//     std::cout.rdbuf(outFile.rdbuf());
-
-//     Dl_info caller_info, callee_info;
-//     const char* caller_name = "unknown";
-//     const char* callee_name = "unknown";
-
-//     if (dladdr(caller, &caller_info) && caller_info.dli_sname)
-//         caller_name = caller_info.dli_sname;
-//     if (dladdr(callee, &callee_info) && callee_info.dli_sname)
-//         callee_name = callee_info.dli_sname;
-
-//     std::string read_caller = llvm::demangle(std::string(caller_name));
-//     std::string read_callee = llvm::demangle(std::string(callee_name));
-
-//     std::cout << "[CALL] " << read_caller << "-> " <<  read_callee << std::endl;
-//     std::cout.rdbuf(coutbuf);
-//     return;
-// }
 
 char IndirectCallAnalysis::ID = 0;
 
